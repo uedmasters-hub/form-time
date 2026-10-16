@@ -20,6 +20,11 @@ type MonthHeaderProps = {
   showToday: boolean;
   /** Type and control scale; 1 at the base layout size. */
   scale: number;
+  /** Row height; the calendar uses it to line up the day panel. */
+  height: number;
+  /** Space before the title and after the arrows, to line up with the dates. */
+  insetStart?: number;
+  insetEnd?: number;
   /** Omitted at the ends of the covered range. */
   onPrevious?: () => void;
   onNext?: () => void;
@@ -39,6 +44,9 @@ export function MonthHeader({
   theme,
   showToday,
   scale,
+  height,
+  insetStart = 0,
+  insetEnd = 0,
   onPrevious,
   onNext,
   onToday,
@@ -48,9 +56,21 @@ export function MonthHeader({
   const yearStroke = YEAR_STROKE * scale;
   const yearWidth = (layoutNumeral(yearText).width / GLYPH_HEIGHT) * yearHeight + yearStroke * 2;
   const iconSize = Math.round(20 * Math.min(scale, 1.3));
+  // The arrow icon sits centred in a 44 pt target; end the icon, not the
+  // target, at the inset.
+  const iconInset = (44 - iconSize) / 2;
 
   return (
-    <View style={[styles.header, { minHeight: 48 * scale }]}>
+    <View
+      style={[
+        styles.header,
+        {
+          height,
+          paddingLeft: insetStart,
+          paddingRight: Math.max(0, insetEnd - iconInset),
+        },
+      ]}
+    >
       <View
         style={styles.titleBlock}
         accessibilityRole="header"

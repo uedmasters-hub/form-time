@@ -30,7 +30,19 @@ const BASE_CELL = 76;
 const PANEL_WIDTH = 240;
 const COLUMN_GAP = 72;
 const HEADER_BLOCK = 48 + 20 + 28; // header row, its margin, weekday labels
-const PANEL_OFFSET = 76; // lines the panel's first line up with the weekday labels
+/** Lines the panel's first line up with the weekday labels' text. */
+const WEEKDAY_TEXT_OFFSET = 8;
+/**
+ * Where a two-digit day numeral starts inside its cell, as a share of the
+ * cell. The month title and the panel start here, and the month arrows end
+ * here on the right, so the header lines up with the dates beneath it.
+ */
+const NUMERAL_INSET = 0.36;
+/**
+ * Header type grows more slowly than the grid: big screens get bigger days,
+ * not a shouting title.
+ */
+const HEADER_GROWTH = 0.3;
 /** Height of the top-right region control, kept clear on narrow layouts. */
 const TOP_CONTROL_BAND = 44;
 
@@ -164,6 +176,12 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   // Type and spacing follow the cells: 1 at the reference size, larger on
   // big screens (phones keep the base size; tablets grow a little).
   const scale = wide ? clamp(cellSize / BASE_CELL, 1, 1.65) : clamp(cellSize / 64, 1, 1.3);
+  const headerScale = 1 + (scale - 1) * HEADER_GROWTH;
+  const numeralInset = Math.round(cellSize * NUMERAL_INSET);
+  const headerGap = 20 * headerScale;
+  // Taller with a second line (B.S. months); the panel lines up below it.
+  const subtitle = system.secondaryMonthLabel?.(visible);
+  const headerHeight = (subtitle ? 54 : 48) * headerScale;
 
   const showToday = !sameMonth(visible, system.monthOf(today)) || !isSameDay(selected, today);
 
@@ -190,15 +208,18 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 title={system.monthName(visible)}
                 year={visible.year}
                 label={system.monthLabel(visible)}
-                subtitle={system.secondaryMonthLabel?.(visible)}
+                subtitle={subtitle}
+                height={headerHeight}
                 theme={theme}
                 showToday={showToday}
-                scale={scale}
+                scale={headerScale}
+                insetStart={numeralInset}
+                insetEnd={numeralInset}
                 onPrevious={previousMonth ? () => showMonth(previousMonth) : undefined}
                 onNext={nextMonth ? () => showMonth(nextMonth) : undefined}
                 onToday={goToday}
               />
-              <View style={{ height: 20 * scale }} />
+              <View style={{ height: headerGap }} />
               <MonthGrid
                 system={system}
                 month={visible}
@@ -223,13 +244,13 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                   ? {
                       position: 'absolute',
                       right: 0,
-                      top: PANEL_OFFSET * scale,
+                      top: headerHeight + headerGap + WEEKDAY_TEXT_OFFSET * scale,
                       width: PANEL_WIDTH * scale,
                     }
                   : {
                       width: cellSize * 7,
                       marginTop: 36 * scale,
-                      paddingHorizontal: cellSize * 0.18,
+                      paddingHorizontal: numeralInset,
                     }
               }
             >

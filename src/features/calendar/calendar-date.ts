@@ -92,7 +92,15 @@ export function startOfWeek(date: CalendarDate, weekStart: Weekday): CalendarDat
  * Always six rows, so the grid never changes height between months.
  */
 export function monthGrid(year: number, month: number, weekStart: Weekday): CalendarDate[] {
-  const first = startOfWeek({ year, month, day: 1 }, weekStart);
+  return sixWeeksFrom({ year, month, day: 1 }, weekStart);
+}
+
+/**
+ * Six weeks starting with the week of `firstOfMonth` — for any calendar
+ * whose months are up to 36 days long (Bikram Sambat months run 29–32).
+ */
+export function sixWeeksFrom(firstOfMonth: CalendarDate, weekStart: Weekday): CalendarDate[] {
+  const first = startOfWeek(firstOfMonth, weekStart);
   return Array.from({ length: 42 }, (_, i) => addDays(first, i));
 }
 

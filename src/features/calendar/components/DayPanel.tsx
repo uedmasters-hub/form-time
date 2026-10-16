@@ -6,9 +6,12 @@ import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 import { GLYPH_HEIGHT, layoutNumeral } from '@/features/clock/numerals';
 
 import { formatDate, type CalendarDate } from '../calendar-date';
+import type { CalendarSystem } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
 
 type DayPanelProps = {
+  /** Numbers and names the day in this calendar (Gregorian or B.S.). */
+  system: CalendarSystem;
   date: CalendarDate;
   isToday: boolean;
   /** Holidays and festivals on this day, public first. */
@@ -28,6 +31,7 @@ type DayPanelProps = {
  * above it, and the day's holidays and festivals below a hairline.
  */
 export function DayPanel({
+  system,
   date,
   isToday,
   holidays,
@@ -40,22 +44,23 @@ export function DayPanel({
   const end = align === 'end';
   const type = Math.min(scale, 1.35);
   const stroke = Math.max(3, numeralHeight * 0.17);
-  const text = String(date.day);
+  const text = String(system.dayOf(date) ?? date.day);
   const width = (layoutNumeral(text).width / GLYPH_HEIGHT) * numeralHeight + stroke * 2;
   const height = numeralHeight + stroke * 2;
   const weekdayName = formatDate(date, { weekday: 'long' });
-  const monthYear = formatDate(date, { month: 'long', year: 'numeric' });
+  const month = system.monthOf(date);
+  const monthYear = month
+    ? system.monthLabel(month)
+    : formatDate(date, { month: 'long', year: 'numeric' });
+  const secondary = system.secondaryDate?.(date);
 
   return (
     <View
       style={[styles.panel, end && styles.panelEnd]}
       accessible
-      accessibilityLabel={`${formatDate(date, {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })}${isToday ? ', today' : ''}. ${
+      accessibilityLabel={`${system.longDate(date)}${secondary ? ` (${secondary})` : ''}${
+        isToday ? ', today' : ''
+      }. ${
         holidays.length
           ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describe(h)}`).join('. ')
           : 'No holidays or festivals'
@@ -89,6 +94,17 @@ export function DayPanel({
       >
         {monthYear}
       </Text>
+      {secondary ? (
+        <Text
+          style={[
+            styles.secondary,
+            { color: theme.muted, fontSize: 12 * type, marginTop: 4 * scale },
+            end && styles.textEnd,
+          ]}
+        >
+          {secondary}
+        </Text>
+      ) : null}
 
       <View
         style={[
@@ -178,6 +194,9 @@ const styles = StyleSheet.create({
   },
   monthYear: {
     fontWeight: '300',
+    letterSpacing: 0.3,
+  },
+  secondary: {
     letterSpacing: 0.3,
   },
   rule: {

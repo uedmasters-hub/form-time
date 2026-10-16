@@ -6,18 +6,23 @@ import { QuietIconButton } from '@/components/QuietIconButton';
 import { Numeral } from '@/features/clock/components/Numeral';
 import { GLYPH_HEIGHT, layoutNumeral } from '@/features/clock/numerals';
 
-import { formatDate } from '../calendar-date';
 import type { CalendarTheme } from '../calendar-theme';
 
 type MonthHeaderProps = {
+  /** Month name: "October", "Asoj". */
+  title: string;
   year: number;
-  month: number;
+  /** Full name for assistive tech: "Asoj 2083". */
+  label: string;
+  /** A quieter second line, e.g. the Gregorian months a B.S. month spans. */
+  subtitle?: string;
   theme: CalendarTheme;
   showToday: boolean;
   /** Type and control scale; 1 at the base layout size. */
   scale: number;
-  onPrevious: () => void;
-  onNext: () => void;
+  /** Omitted at the ends of the covered range. */
+  onPrevious?: () => void;
+  onNext?: () => void;
   onToday: () => void;
 };
 
@@ -27,8 +32,10 @@ const YEAR_STROKE = 2.4;
 
 /** Month name, the year in dial numerals, and quiet month controls. */
 export function MonthHeader({
+  title,
   year,
-  month,
+  label,
+  subtitle,
   theme,
   showToday,
   scale,
@@ -36,7 +43,6 @@ export function MonthHeader({
   onNext,
   onToday,
 }: MonthHeaderProps) {
-  const monthName = formatDate({ year, month, day: 1 }, { month: 'long' });
   const yearText = String(year);
   const yearHeight = YEAR_HEIGHT * scale;
   const yearStroke = YEAR_STROKE * scale;
@@ -46,28 +52,40 @@ export function MonthHeader({
   return (
     <View style={[styles.header, { minHeight: 48 * scale }]}>
       <View
-        style={styles.title}
+        style={styles.titleBlock}
         accessibilityRole="header"
-        accessibilityLabel={formatDate({ year, month, day: 1 }, { month: 'long', year: 'numeric' })}
+        accessibilityLabel={subtitle ? `${label}, ${subtitle}` : label}
         accessible
       >
-        <Text style={[styles.month, { color: theme.ink, fontSize: MONTH_SIZE * scale }]}>
-          {monthName}
-        </Text>
-        <Svg
-          width={yearWidth}
-          height={yearHeight + yearStroke * 2}
-          style={[styles.year, { marginLeft: 12 * scale, marginTop: 4 * scale }]}
-        >
-          <Numeral
-            text={yearText}
-            x={yearWidth / 2}
-            y={(yearHeight + yearStroke * 2) / 2}
-            height={yearHeight}
-            strokeWidth={yearStroke}
-            color={theme.accent}
-          />
-        </Svg>
+        <View style={styles.title}>
+          <Text style={[styles.month, { color: theme.ink, fontSize: MONTH_SIZE * scale }]}>
+            {title}
+          </Text>
+          <Svg
+            width={yearWidth}
+            height={yearHeight + yearStroke * 2}
+            style={[styles.year, { marginLeft: 12 * scale, marginTop: 4 * scale }]}
+          >
+            <Numeral
+              text={yearText}
+              x={yearWidth / 2}
+              y={(yearHeight + yearStroke * 2) / 2}
+              height={yearHeight}
+              strokeWidth={yearStroke}
+              color={theme.accent}
+            />
+          </Svg>
+        </View>
+        {subtitle ? (
+          <Text
+            style={[
+              styles.subtitle,
+              { color: theme.muted, fontSize: 12 * Math.min(scale, 1.35), marginTop: 2 * scale },
+            ]}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.controls}>
@@ -96,6 +114,7 @@ export function MonthHeader({
           icon={ChevronLeft}
           label="Previous month"
           onPress={onPrevious}
+          disabled={!onPrevious}
           iconSize={iconSize}
           restOpacity={0.55}
           touchRestOpacity={0.7}
@@ -104,6 +123,7 @@ export function MonthHeader({
           icon={ChevronRight}
           label="Next month"
           onPress={onNext}
+          disabled={!onNext}
           iconSize={iconSize}
           restOpacity={0.55}
           touchRestOpacity={0.7}
@@ -119,10 +139,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  titleBlock: {
+    flexShrink: 1,
+  },
   title: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    flexShrink: 1,
+  },
+  subtitle: {
+    letterSpacing: 0.4,
   },
   month: {
     fontWeight: '300',

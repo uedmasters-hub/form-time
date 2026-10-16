@@ -69,6 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         ...DEFAULT_SETTINGS,
         region: current.region,
         area: current.area,
+        nepalCalendar: current.nepalCalendar,
         showPublicHolidays: current.showPublicHolidays,
         showRestrictedHolidays: current.showRestrictedHolidays,
         showFestivals: current.showFestivals,

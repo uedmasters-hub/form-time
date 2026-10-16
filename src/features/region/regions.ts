@@ -17,6 +17,8 @@ export type Region = {
   code: RegionCode;
   name: string;
   areas: readonly Area[];
+  /** Weekly days off, 0 = Sunday … 6 = Saturday; shown in the weekend colour. */
+  weekend: readonly number[];
 };
 
 export const REGIONS: readonly Region[] = [
@@ -24,11 +26,14 @@ export const REGIONS: readonly Region[] = [
     code: 'NP',
     name: 'Nepal',
     areas: [{ id: 'NP', short: 'NP', label: 'Kathmandu', timeZone: 'Asia/Kathmandu' }],
+    // Saturday is Nepal's weekly holiday; Sunday is a working day.
+    weekend: [6],
   },
   {
     code: 'IN',
     name: 'India',
     areas: [{ id: 'IN', short: 'IN', label: 'New Delhi', timeZone: 'Asia/Kolkata' }],
+    weekend: [0, 6],
   },
   {
     code: 'US',
@@ -42,6 +47,7 @@ export const REGIONS: readonly Region[] = [
       { id: 'AK', short: 'AK', label: 'Alaska · Anchorage', timeZone: 'America/Anchorage' },
       { id: 'HI', short: 'HI', label: 'Hawaii · Honolulu', timeZone: 'Pacific/Honolulu' },
     ],
+    weekend: [0, 6],
   },
   {
     code: 'AU',
@@ -61,6 +67,7 @@ export const REGIONS: readonly Region[] = [
       { id: 'TAS', short: 'TAS', label: 'Tasmania · Hobart', timeZone: 'Australia/Hobart' },
       { id: 'NT', short: 'NT', label: 'Northern Territory · Darwin', timeZone: 'Australia/Darwin' },
     ],
+    weekend: [0, 6],
   },
 ];
 

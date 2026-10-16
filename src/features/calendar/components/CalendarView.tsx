@@ -4,16 +4,16 @@ import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-nati
 import { holidaysByDay, KIND_LABELS } from '@/features/holidays/holidays';
 import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
+import { regionOf } from '@/features/region/regions';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
+import { isSameDay, sixWeeksFrom, toISODate, type CalendarDate } from '../calendar-date';
 import {
-  addMonths,
-  isSameDay,
-  isSameMonth,
-  monthGrid,
-  toISODate,
-  type CalendarDate,
-} from '../calendar-date';
+  calendarSystemFor,
+  sameMonth,
+  type CalendarSystemId,
+  type MonthRef,
+} from '../calendar-system';
 import { useToday } from '../use-today';
 import { DayPanel } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
@@ -52,28 +52,43 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   const { uiTheme: theme, weekStart, settings, timeZone } = useSettings();
   const today = useToday(timeZone);
+  // Nepal's calendar is Bikram Sambat: its months, not the Gregorian ones.
+  const system = calendarSystemFor(settings.region, settings.nepalCalendar, today);
 
   const [selected, setSelected] = useState<CalendarDate>(today);
-  const [visible, setVisible] = useState({ year: today.year, month: today.month });
+  // The month on screen, in the numbering of the system it was chosen in.
+  const [view, setView] = useState<{ system: CalendarSystemId; month: MonthRef } | null>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
+
+  // After a switch of calendar, show the month holding the selected day (or
+  // today, if the new calendar doesn't cover the selection).
+  const coveredSelection = system.monthOf(selected) ? selected : today;
+  const visible: MonthRef =
+    view && view.system === system.id ? view.month : (system.monthOf(coveredSelection) as MonthRef);
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
     const { width, height } = nativeEvent.layout;
     setArea((a) => (a.width === width && a.height === height ? a : { width, height }));
   };
 
-  const select = useCallback((date: CalendarDate) => {
-    setSelected(date);
-    setVisible((v) =>
-      v.year === date.year && v.month === date.month ? v : { year: date.year, month: date.month },
-    );
-  }, []);
+  const select = useCallback(
+    (date: CalendarDate) => {
+      const month = system.monthOf(date);
+      // Past the published range (Bikram Sambat), there's nothing to show.
+      if (!month) return;
+      setSelected(date);
+      setView((v) =>
+        v && v.system === system.id && sameMonth(v.month, month) ? v : { system: system.id, month },
+      );
+    },
+    [system],
+  );
 
-  const shiftMonth = (months: number) =>
-    setVisible((v) => {
-      const next = addMonths({ ...v, day: 1 }, months);
-      return { year: next.year, month: next.month };
-    });
+  const previousMonth = system.shiftMonth(visible, -1);
+  const nextMonth = system.shiftMonth(visible, 1);
+  const showMonth = (month: MonthRef | null) => {
+    if (month) setView({ system: system.id, month });
+  };
 
   const goToday = () => select(today);
 
@@ -85,13 +100,13 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
     previousToday.current = today;
     if (!isSameDay(before, today)) {
       setSelected((s) => (isSameDay(s, before) ? today : s));
-      setVisible((v) =>
-        v.year === before.year && v.month === before.month
-          ? { year: today.year, month: today.month }
+      setView((v) =>
+        v && sameMonth(v.month, system.monthOf(before))
+          ? { system: system.id, month: system.monthOf(today) ?? v.month }
           : v,
       );
     }
-  }, [today]);
+  }, [today, system]);
 
   const filters = useMemo(
     () => ({
@@ -104,10 +119,15 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
 
   // Holidays for the six visible weeks, plus the selected day (which may be
   // in another month after paging).
-  const gridHolidays = useMemo(() => {
-    const days = monthGrid(visible.year, visible.month, weekStart);
-    return holidaysByDay(settings.region, settings.area, days[0], days[41], filters);
-  }, [visible, weekStart, settings.region, settings.area, filters]);
+  const { year: visibleYear, month: visibleMonth } = visible;
+  const days = useMemo(
+    () => sixWeeksFrom(system.firstDay({ year: visibleYear, month: visibleMonth }), weekStart),
+    [system, visibleYear, visibleMonth, weekStart],
+  );
+  const gridHolidays = useMemo(
+    () => holidaysByDay(settings.region, settings.area, days[0], days[41], filters),
+    [days, settings.region, settings.area, filters],
+  );
   const selectedHolidays = useMemo(
     () =>
       gridHolidays.get(toISODate(selected)) ??
@@ -145,7 +165,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   // big screens (phones keep the base size; tablets grow a little).
   const scale = wide ? clamp(cellSize / BASE_CELL, 1, 1.65) : clamp(cellSize / 64, 1, 1.3);
 
-  const showToday = !isSameMonth({ ...visible, day: 1 }, today) || !isSameDay(selected, today);
+  const showToday = !sameMonth(visible, system.monthOf(today)) || !isSameDay(selected, today);
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.page }]} onLayout={onLayout}>
@@ -167,22 +187,26 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
             {/* The month — centred on the page */}
             <View style={{ width: cellSize * 7 }}>
               <MonthHeader
+                title={system.monthName(visible)}
                 year={visible.year}
-                month={visible.month}
+                label={system.monthLabel(visible)}
+                subtitle={system.secondaryMonthLabel?.(visible)}
                 theme={theme}
                 showToday={showToday}
                 scale={scale}
-                onPrevious={() => shiftMonth(-1)}
-                onNext={() => shiftMonth(1)}
+                onPrevious={previousMonth ? () => showMonth(previousMonth) : undefined}
+                onNext={nextMonth ? () => showMonth(nextMonth) : undefined}
                 onToday={goToday}
               />
               <View style={{ height: 20 * scale }} />
               <MonthGrid
-                year={visible.year}
-                month={visible.month}
+                system={system}
+                month={visible}
+                days={days}
                 selected={selected}
                 today={today}
                 weekStart={weekStart}
+                weekend={regionOf(settings.region).weekend}
                 cellSize={cellSize}
                 scale={scale}
                 theme={theme}
@@ -210,6 +234,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               }
             >
               <DayPanel
+                system={system}
                 date={selected}
                 isToday={isSameDay(selected, today)}
                 holidays={selectedHolidays}

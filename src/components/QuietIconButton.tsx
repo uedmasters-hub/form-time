@@ -15,7 +15,9 @@ import { useCanHover } from '@/hooks/use-can-hover';
 type QuietIconButtonProps = {
   icon: LucideIcon;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  /** Shown faintly and ignored (e.g. "Next month" at the end of a range). */
+  disabled?: boolean;
   hint?: string;
   /** Resting opacity where a pointer can hover. */
   restOpacity?: number;
@@ -36,6 +38,7 @@ export function QuietIconButton({
   icon: Icon,
   label,
   onPress,
+  disabled = false,
   hint,
   restOpacity = 0.25,
   touchRestOpacity = 0.4,
@@ -57,6 +60,9 @@ export function QuietIconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
+      accessibilityState={{ disabled }}
+      aria-disabled={disabled}
+      disabled={disabled}
       onPress={onPress}
       onFocus={onFocus}
       onBlur={() => setFocusVisible(false)}
@@ -64,8 +70,13 @@ export function QuietIconButton({
       style={({ hovered, pressed }) => [
         styles.button,
         {
-          opacity:
-            hovered || pressed || focusVisible ? 1 : canHover ? restOpacity : touchRestOpacity,
+          opacity: disabled
+            ? 0.12
+            : hovered || pressed || focusVisible
+              ? 1
+              : canHover
+                ? restOpacity
+                : touchRestOpacity,
         },
         pressed && [styles.pressed, { backgroundColor: uiTheme.hover }],
         focusVisible && { borderColor: uiTheme.accent },

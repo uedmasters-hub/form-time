@@ -6,10 +6,7 @@ import { useSwipeAwarePress } from '@/features/pager/pager-context';
 
 import {
   addDays,
-  addMonths,
-  formatDate,
   isSameDay,
-  monthGrid,
   startOfWeek,
   toISODate,
   weekday,
@@ -18,6 +15,7 @@ import {
   type CalendarDate,
   type Weekday,
 } from '../calendar-date';
+import { sameMonth, type CalendarSystem, type MonthRef } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
 import { DayCell } from './DayCell';
 
@@ -25,11 +23,16 @@ import { DayCell } from './DayCell';
 export const MONTH_GRID_ID = 'ft-month-grid';
 
 type MonthGridProps = {
-  year: number;
-  month: number;
+  /** Gregorian or Bikram Sambat: which days form the month and their numbers. */
+  system: CalendarSystem;
+  month: MonthRef;
+  /** The six weeks on screen. */
+  days: CalendarDate[];
   selected: CalendarDate;
   today: CalendarDate;
   weekStart: Weekday;
+  /** The region's weekly days off. */
+  weekend: readonly number[];
   cellSize: number;
   /** Type scale for the weekday labels; 1 at the base layout size. */
   scale: number;
@@ -40,13 +43,6 @@ type MonthGridProps = {
   onSelect: (date: CalendarDate) => void;
 };
 
-const FULL_DATE: Intl.DateTimeFormatOptions = {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-};
-
 /**
  * Six fixed weeks, so the grid never changes height between months.
  *
@@ -55,11 +51,13 @@ const FULL_DATE: Intl.DateTimeFormatOptions = {
  * selected day is in the tab order; focus follows the selection.
  */
 export function MonthGrid({
-  year,
+  system,
   month,
+  days,
   selected,
   today,
   weekStart,
+  weekend,
   cellSize,
   scale,
   theme,
@@ -67,11 +65,10 @@ export function MonthGrid({
   kindLabels,
   onSelect,
 }: MonthGridProps) {
-  const days = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
   const headers = useMemo(() => weekdayNames(weekStart, 'narrow'), [weekStart]);
   const weekendColumns = useMemo(
-    () => weekdayOrder(weekStart).map((wd) => wd === 0 || wd === 6),
-    [weekStart],
+    () => weekdayOrder(weekStart).map((wd) => weekend.includes(wd)),
+    [weekStart, weekend],
   );
 
   const cellRefs = useRef(new Map<string, View>());
@@ -103,10 +100,10 @@ export function MonthGrid({
           next = addDays(selected, 7);
           break;
         case 'PageUp':
-          next = addMonths(selected, event.shiftKey ? -12 : -1);
+          next = system.shiftDate(selected, event.shiftKey ? -12 : -1);
           break;
         case 'PageDown':
-          next = addMonths(selected, event.shiftKey ? 12 : 1);
+          next = system.shiftDate(selected, event.shiftKey ? 12 : 1);
           break;
         case 'Home':
           next = startOfWeek(selected, weekStart);
@@ -117,23 +114,26 @@ export function MonthGrid({
       }
       if (!next) return;
       event.preventDefault();
+      // Past the end of the covered range: stay put.
+      if (!system.monthOf(next)) return;
       focusAfterMove.current = true;
       onSelect(next);
     };
 
     node.addEventListener('keydown', onKeyDown);
     return () => node.removeEventListener('keydown', onKeyDown);
-  }, [selected, weekStart, onSelect]);
+  }, [selected, weekStart, onSelect, system]);
 
   // Keep keyboard focus on the selected day after arrow-key moves.
   useEffect(() => {
     if (!focusAfterMove.current) return;
     focusAfterMove.current = false;
     cellRefs.current.get(toISODate(selected))?.focus();
-  }, [selected, year, month]);
+  }, [selected, month]);
 
   const weeks = Array.from({ length: 6 }, (_, w) => days.slice(w * 7, w * 7 + 7));
-  const groupLabel = formatDate({ year, month, day: 1 }, { month: 'long', year: 'numeric' });
+  const groupLabel = system.monthLabel(month);
+  const showGregorian = system.id !== 'gregorian';
 
   return (
     <View
@@ -173,7 +173,8 @@ export function MonthGrid({
             const wd = weekday(date);
             const dayHolidays = holidays.get(toISODate(date)) ?? [];
             const label =
-              formatDate(date, FULL_DATE) +
+              system.longDate(date) +
+              (system.secondaryDate ? ` (${system.secondaryDate(date)})` : '') +
               (isToday ? ', today' : '') +
               dayHolidays.map((h) => `, ${kindLabels[h.kind]}: ${h.name}`).join('');
             const marks = dayHolidays.length
@@ -189,13 +190,14 @@ export function MonthGrid({
                   if (node) cellRefs.current.set(toISODate(date), node);
                   else cellRefs.current.delete(toISODate(date));
                 }}
-                day={date.day}
+                day={system.dayOf(date) ?? date.day}
+                subDay={showGregorian ? date.day : undefined}
                 size={cellSize}
                 label={label}
                 isToday={isToday}
                 isSelected={isSelected}
-                isOutsideMonth={date.month !== month}
-                isWeekend={wd === 0 || wd === 6}
+                isOutsideMonth={!sameMonth(system.monthOf(date), month)}
+                isWeekend={weekend.includes(wd)}
                 isFocusTarget={isSelected}
                 marks={marks}
                 theme={theme}

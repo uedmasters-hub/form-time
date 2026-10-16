@@ -33,7 +33,7 @@ export const KIND_PLURALS: Record<RegionCode, Record<HolidayKind, string>> = {
 /** Kinds that actually occur in a region's data (so empty toggles are hidden). */
 export const REGION_KINDS: Record<RegionCode, HolidayKind[]> = {
   IN: ['public', 'restricted', 'festival'],
-  NP: ['public', 'restricted'],
+  NP: ['public', 'restricted', 'festival'],
   US: ['public'],
   AU: ['public'],
 };

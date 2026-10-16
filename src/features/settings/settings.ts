@@ -1,3 +1,4 @@
+import type { CalendarChoice } from '@/features/calendar/calendar-system';
 import { DIALS, LUMES, type DialId, type LumeId } from '@/features/clock/dial-palettes';
 import { DEFAULT_REGION, REGIONS, areaOf, type RegionCode } from '@/features/region/regions';
 
@@ -24,6 +25,8 @@ export type Settings = {
   region: RegionCode;
   /** Time zone / state within the region (see regions.ts). */
   area: string;
+  /** Nepal: Bikram Sambat ('bs') or Gregorian ('ad') months on the calendar. */
+  nepalCalendar: CalendarChoice;
   /** Calendar overlays. */
   showPublicHolidays: boolean;
   showRestrictedHolidays: boolean;
@@ -40,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weekStart: 'locale',
   region: DEFAULT_REGION,
   area: DEFAULT_REGION,
+  nepalCalendar: 'bs',
   showPublicHolidays: true,
   showRestrictedHolidays: true,
   showFestivals: true,
@@ -60,6 +64,11 @@ export const MOVEMENTS: readonly { id: Movement; label: string; detail: string }
 export const SIZES: readonly { id: ClockSize; label: string }[] = [
   { id: 'classic', label: 'Classic' },
   { id: 'compact', label: 'Compact' },
+];
+
+export const NEPAL_CALENDARS: readonly { id: CalendarChoice; label: string; detail: string }[] = [
+  { id: 'bs', label: 'Bikram Sambat', detail: 'B.S. — Nepal’s official calendar' },
+  { id: 'ad', label: 'Gregorian', detail: 'A.D.' },
 ];
 
 export const WEEK_STARTS: readonly { id: WeekStartSetting; label: string }[] = [
@@ -119,6 +128,11 @@ export function sanitizeSettings(raw: unknown): Settings {
     ),
     region,
     area: areaOf(region, typeof r.area === 'string' ? r.area : undefined).id,
+    nepalCalendar: oneOf(
+      r.nepalCalendar,
+      NEPAL_CALENDARS.map((c) => c.id),
+      d.nepalCalendar,
+    ),
     showPublicHolidays: bool(r.showPublicHolidays, d.showPublicHolidays),
     showRestrictedHolidays: bool(r.showRestrictedHolidays, d.showRestrictedHolidays),
     showFestivals: bool(r.showFestivals, d.showFestivals),

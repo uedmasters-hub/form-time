@@ -5,7 +5,8 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Sheet, SheetSection, SheetSwitch } from '@/components/Sheet';
 import { holidaySources, KIND_PLURALS, REGION_KINDS } from '@/features/holidays/holidays';
 import type { HolidayKind } from '@/features/holidays/types';
-import type { Settings } from '@/features/settings/settings';
+import { OptionGroup } from '@/features/settings/components/OptionGroup';
+import { NEPAL_CALENDARS, type Settings } from '@/features/settings/settings';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
 import { REGIONS, areaOf, type RegionCode } from '../regions';
@@ -31,6 +32,7 @@ const KIND_DETAIL: Record<RegionCode, Partial<Record<HolidayKind, string>>> = {
   NP: {
     public: 'For everyone — Dashain, Tihar and more',
     restricted: 'For specific communities, groups or districts',
+    festival: 'Dashain, Tihar, jatras and other festivals',
   },
   US: { public: 'Observed by federal offices' },
   AU: { public: 'For the selected state or territory' },
@@ -136,6 +138,18 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
           })}
         </View>
       </SheetSection>
+
+      {region.code === 'NP' ? (
+        <SheetSection label="Calendar">
+          <OptionGroup
+            label="Calendar"
+            options={NEPAL_CALENDARS}
+            value={settings.nepalCalendar}
+            onChange={(nepalCalendar) => update({ nepalCalendar })}
+            theme={ui}
+          />
+        </SheetSection>
+      ) : null}
 
       {region.areas.length > 1 ? (
         <SheetSection

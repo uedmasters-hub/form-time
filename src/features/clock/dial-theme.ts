@@ -13,7 +13,7 @@ export type DialTheme = {
   /** Dial surface: radial from centre to edge. */
   dialCenter: string;
   dialEdge: string;
-  /** Hairline that defines the dial's outer edge. */
+  /** Hairline at the dial's outer edge, shown only while hovering. */
   dialRim: string;
 
   /** Minute track: ticks and the outer 05–60 scale. */
@@ -46,7 +46,7 @@ export const aquaDial: DialTheme = {
 
   dialCenter: '#F6F7F7',
   dialEdge: '#F4F5F5',
-  dialRim: '#E6EAEB',
+  dialRim: '#D6DDDF',
 
   scale: '#13838A',
   numeral: '#0E5761',

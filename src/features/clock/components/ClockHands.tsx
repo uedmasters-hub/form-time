@@ -38,12 +38,12 @@ const SHADOW = {
 
 /** Widening, faint strokes that together read as a soft blur. */
 const SHADOW_PASSES = [
-  { width: 56, opacity: 0.016 },
-  { width: 46, opacity: 0.02 },
-  { width: 36, opacity: 0.024 },
-  { width: 27, opacity: 0.028 },
-  { width: 18, opacity: 0.032 },
-  { width: 10, opacity: 0.036 },
+  { width: 56, opacity: 0.008 },
+  { width: 46, opacity: 0.01 },
+  { width: 36, opacity: 0.012 },
+  { width: 27, opacity: 0.014 },
+  { width: 18, opacity: 0.016 },
+  { width: 10, opacity: 0.018 },
 ] as const;
 
 /**
@@ -171,11 +171,11 @@ export function ClockHands({ size, angles, theme, idPrefix }: ClockHandsProps) {
         angle={angles.second}
         offset={SHADOW.second}
         color={theme.lumeGlow}
-        strength={0.3}
+        strength={0.2}
       />
       <G transform={`translate(${CENTER + SHADOW.hub.dx} ${CENTER + SHADOW.hub.dy})`}>
-        <Circle r={40} fill={theme.lumeGlow} opacity={0.05} />
-        <Circle r={32} fill={theme.lumeGlow} opacity={0.06} />
+        <Circle r={40} fill={theme.lumeGlow} opacity={0.025} />
+        <Circle r={32} fill={theme.lumeGlow} opacity={0.03} />
       </G>
 
       <SculptedHand

@@ -63,16 +63,9 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
         </Filter>
       </Defs>
 
-      {/* Face and a single hairline rim */}
+      {/* Face. Its edge colour matches the page, so it has no visible boundary;
+          the rim is a separate hover-only layer (ClockRim). */}
       <Circle cx={CENTER} cy={CENTER} r={DIAL.faceRadius} fill={url('face')} />
-      <Circle
-        cx={CENTER}
-        cy={CENTER}
-        r={DIAL.faceRadius}
-        fill="none"
-        stroke={theme.dialRim}
-        strokeWidth={1.5}
-      />
 
       {/* Minute track — the hour positions are carried by the applied indices */}
       {MINUTES.filter((m) => m % 5 !== 0).map((m) => {
@@ -113,7 +106,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       </G>
 
       {/* Contact shadow: indices are applied, so they sit slightly above the face */}
-      <G filter={url('soft')} opacity={0.14} transform="translate(2 4)">
+      <G filter={url('soft')} opacity={0.08} transform="translate(2 4)">
         {HOURS.map((h) => {
           const outer = polar(DIAL.indexOuter, h * 30);
           const inner = polar(DIAL.indexInner, h * 30);

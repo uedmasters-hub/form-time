@@ -1,4 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Bell } from 'lucide-react-native';
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
 
 import { Numeral } from '@/features/clock/components/Numeral';
@@ -8,6 +10,17 @@ import { GLYPH_HEIGHT, layoutNumeral } from '@/features/clock/numerals';
 import { formatDate, type CalendarDate } from '../calendar-date';
 import type { CalendarSystem } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
+
+/** One of the user's own items on this day, ready to show. */
+export type DayItem = {
+  id: string;
+  /** "Meeting", "Alarm". */
+  kindLabel: string;
+  title: string;
+  /** "9:30 AM", or "All day". */
+  when: string;
+  hasReminder: boolean;
+};
 
 type DayPanelProps = {
   /** Numbers and names the day in this calendar (Gregorian or B.S.). */
@@ -24,6 +37,11 @@ type DayPanelProps = {
   scale?: number;
   /** 'end' sets the panel flush right, for the page's right edge. */
   align?: 'start' | 'end';
+  /** The user's events, notes and reminders on this day, in time order. */
+  items?: DayItem[];
+  onOpenItem?: (id: string) => void;
+  /** Controls set on the weekday line, at the far side (phones: Today, +). */
+  actions?: ReactNode;
 };
 
 /**
@@ -40,6 +58,9 @@ export function DayPanel({
   numeralHeight,
   scale = 1,
   align = 'start',
+  items = [],
+  onOpenItem,
+  actions,
 }: DayPanelProps) {
   const end = align === 'end';
   const type = Math.min(scale, 1.35);
@@ -57,7 +78,8 @@ export function DayPanel({
   return (
     <View
       style={[styles.panel, end && styles.panelEnd]}
-      accessible
+      // One summary for screen readers, unless it holds items to open.
+      accessible={items.length === 0 && !actions}
       accessibilityLabel={`${system.longDate(date)}${secondary ? ` (${secondary})` : ''}${
         isToday ? ', today' : ''
       }. ${
@@ -66,15 +88,18 @@ export function DayPanel({
           : 'No holidays or festivals'
       }.`}
     >
-      <Text
-        style={[
-          styles.weekday,
-          { color: isToday ? theme.accent : theme.muted, fontSize: 11 * type },
-          end && styles.textEnd,
-        ]}
-      >
-        {(isToday ? `Today · ${weekdayName}` : weekdayName).toLocaleUpperCase()}
-      </Text>
+      <View style={[styles.weekdayRow, actions ? styles.weekdayRowSpread : null]}>
+        <Text
+          style={[
+            styles.weekday,
+            { color: isToday ? theme.accent : theme.muted, fontSize: 11 * type },
+            end && styles.textEnd,
+          ]}
+        >
+          {(isToday ? `Today · ${weekdayName}` : weekdayName).toLocaleUpperCase()}
+        </Text>
+        {actions ? <View style={styles.actions}>{actions}</View> : null}
+      </View>
       <Svg width={width} height={height} style={[styles.numeral, { marginTop: 14 * scale }]}>
         <Numeral
           text={text}
@@ -112,6 +137,56 @@ export function DayPanel({
           { backgroundColor: theme.hairline, marginTop: 24 * scale, marginBottom: 16 * scale },
         ]}
       />
+      {items.map((item, i) => (
+        <Pressable
+          key={item.id}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
+            item.hasReminder ? ', reminder set' : ''
+          }`}
+          accessibilityHint="Opens it to edit or delete"
+          onPress={() => onOpenItem?.(item.id)}
+          style={({ hovered, pressed }) => [
+            styles.item,
+            {
+              marginTop: i === 0 ? -6 * scale : 4 * scale,
+              backgroundColor: hovered || pressed ? theme.hover : 'transparent',
+            },
+            end ? styles.itemEnd : styles.itemStart,
+          ]}
+        >
+          <View style={[styles.itemMeta, end && styles.rowEnd]}>
+            <View style={[styles.itemSquare, { backgroundColor: theme.ink }]} />
+            <Text
+              style={[styles.kind, { color: theme.muted, fontSize: 10 * type }]}
+              numberOfLines={1}
+            >
+              {`${item.kindLabel} · ${item.when}`.toLocaleUpperCase()}
+            </Text>
+            {item.hasReminder ? (
+              <Bell size={11 * type} color={theme.muted} strokeWidth={2} />
+            ) : null}
+          </View>
+          <Text
+            style={[
+              styles.holidayName,
+              { color: theme.ink, fontSize: 15 * type },
+              end && styles.textEnd,
+            ]}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
+        </Pressable>
+      ))}
+      {items.length > 0 ? (
+        <View
+          style={[
+            styles.rule,
+            { backgroundColor: theme.hairline, marginTop: 14 * scale, marginBottom: 16 * scale },
+          ]}
+        />
+      ) : null}
       {holidays.length === 0 ? (
         <Text
           style={[styles.empty, { color: theme.muted, fontSize: 13 * type }, end && styles.textEnd]}
@@ -185,6 +260,22 @@ const styles = StyleSheet.create({
   textEnd: {
     textAlign: 'right',
   },
+  weekdayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  weekdayRowSpread: {
+    alignSelf: 'stretch',
+    justifyContent: 'space-between',
+  },
+  // 44 pt targets on an 11 pt line: let them overhang so the line keeps its height.
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginVertical: -16,
+    marginRight: -12,
+  },
   weekday: {
     fontWeight: '500',
     letterSpacing: 2,
@@ -205,6 +296,34 @@ const styles = StyleSheet.create({
   },
   empty: {
     letterSpacing: 0.3,
+  },
+  item: {
+    alignSelf: 'stretch',
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  // The hover wash reaches past the text, so the text stays on the date's line.
+  itemStart: {
+    alignItems: 'flex-start',
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  itemEnd: {
+    alignItems: 'flex-end',
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  itemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rowEnd: {
+    justifyContent: 'flex-end',
+  },
+  itemSquare: {
+    width: 5,
+    height: 5,
   },
   holiday: {
     alignItems: 'flex-start',

@@ -1,7 +1,13 @@
+import { Plus } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { useComposer } from '@/features/events/ComposerProvider';
+import { useEvents } from '@/features/events/EventsProvider';
+import { formatWallTime, instantToWall, placeIn } from '@/features/events/item-time';
+import { KIND_LABEL, type CalendarItem } from '@/features/events/types';
 import { holidaysByDay, kindLabels as kindLabelsFor } from '@/features/holidays/holidays';
+import { QuietIconButton } from '@/components/QuietIconButton';
 import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
 import { regionOf } from '@/features/region/regions';
@@ -16,9 +22,9 @@ import {
 } from '../calendar-system';
 import { useToday } from '../use-today';
 import { NUMERAL_INSET } from './DayCell';
-import { DayPanel } from './DayPanel';
+import { DayPanel, type DayItem } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
-import { MonthHeader } from './MonthHeader';
+import { MonthHeader, TodayButton } from './MonthHeader';
 
 type CalendarViewProps = {
   /** Space to keep clear for the overlaid controls (settings, page indicator). */
@@ -38,6 +44,8 @@ const WEEKDAY_TEXT_OFFSET = 8;
  * not a shouting title.
  */
 const HEADER_GROWTH = 0.3;
+/** Grid width at which the narrow header's title is set at full size. */
+const NARROW_TITLE_WIDTH = 400;
 /** Height of the top-right region control, kept clear on narrow layouts. */
 const TOP_CONTROL_BAND = 44;
 
@@ -146,6 +154,55 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   );
   const kindLabels = kindLabelsFor(settings.region, settings.area);
 
+  // The user's own items, placed on the days they fall on here.
+  const { items } = useEvents();
+  const { compose } = useComposer();
+  const itemsByDay = useMemo(() => {
+    const byDay = new Map<string, { item: CalendarItem; minutes: number; when: string }[]>();
+    for (const item of items) {
+      const placed = placeIn(item, timeZone);
+      const list = byDay.get(placed.date) ?? [];
+      list.push({
+        item,
+        minutes: placed.time ? placed.time.hours * 60 + placed.time.minutes : -1,
+        when: placed.time ? formatWallTime(placed.time, placed.time.seconds !== 0) : 'All day',
+      });
+      byDay.set(placed.date, list);
+    }
+    for (const list of byDay.values()) list.sort((a, b) => a.minutes - b.minutes);
+    return byDay;
+  }, [items, timeZone]);
+  const itemCounts = useMemo(
+    () => new Map([...itemsByDay].map(([iso, list]) => [iso, list.length])),
+    [itemsByDay],
+  );
+  const selectedItems: DayItem[] = (itemsByDay.get(toISODate(selected)) ?? []).map(
+    ({ item, when }) => ({
+      id: item.id,
+      kindLabel: KIND_LABEL[item.kind],
+      title: item.title,
+      when,
+      hasReminder: item.remindAt !== null,
+    }),
+  );
+  const openItem = (id: string) => {
+    const item = items.find((i) => i.id === id);
+    if (item) compose({ mode: 'edit', item });
+  };
+  // Today: the next whole hour (all day if that's tomorrow); other days: 9:00.
+  const addToSelected = () => {
+    let time: { hours: number; minutes: number; seconds: number } | null = {
+      hours: 9,
+      minutes: 0,
+      seconds: 0,
+    };
+    if (isSameDay(selected, today)) {
+      const next = instantToWall(Date.now(), timeZone).time.hours + 1;
+      time = next < 24 ? { hours: next, minutes: 0, seconds: 0 } : null;
+    }
+    compose({ mode: 'new', date: selected, time });
+  };
+
   // Wide: the grid is centred on the page and the day panel sits at the right
   // edge, so each side of the grid must leave room for panel + gap. Everything
   // beside the grid grows with the cells, so solve for the cell size that
@@ -171,7 +228,10 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   // Type and spacing follow the cells: 1 at the reference size, larger on
   // big screens (phones keep the base size; tablets grow a little).
   const scale = wide ? clamp(cellSize / BASE_CELL, 1, 1.65) : clamp(cellSize / 64, 1, 1.3);
-  const headerScale = 1 + (scale - 1) * HEADER_GROWTH;
+  // Phones: the title gives way so month, year and arrows fit on one line.
+  const headerScale = wide
+    ? 1 + (scale - 1) * HEADER_GROWTH
+    : Math.min(1 + (scale - 1) * HEADER_GROWTH, (cellSize * 7) / NARROW_TITLE_WIDTH);
   // The title and panel start, and the month arrows end, where the dates do.
   const numeralInset = Math.round(cellSize * NUMERAL_INSET);
   const headerGap = 20 * headerScale;
@@ -207,13 +267,15 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 subtitle={subtitle}
                 height={headerHeight}
                 theme={theme}
-                showToday={showToday}
+                showToday={wide && showToday}
                 scale={headerScale}
                 insetStart={numeralInset}
                 insetEnd={numeralInset}
                 onPrevious={previousMonth ? () => showMonth(previousMonth) : undefined}
                 onNext={nextMonth ? () => showMonth(nextMonth) : undefined}
                 onToday={goToday}
+                onAdd={wide ? addToSelected : undefined}
+                addLabel={system.longDate(selected)}
               />
               <View style={{ height: headerGap }} />
               <MonthGrid
@@ -229,6 +291,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 theme={theme}
                 holidays={gridHolidays}
                 kindLabels={kindLabels}
+                itemCounts={itemCounts}
                 onSelect={select}
               />
             </View>
@@ -260,6 +323,23 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 numeralHeight={(wide ? 64 : 44) * scale}
                 scale={scale}
                 align={wide ? 'end' : 'start'}
+                items={selectedItems}
+                onOpenItem={openItem}
+                actions={
+                  wide ? undefined : (
+                    <>
+                      {showToday ? <TodayButton theme={theme} onPress={goToday} /> : null}
+                      <QuietIconButton
+                        icon={Plus}
+                        label={`Add to ${system.longDate(selected)}`}
+                        hint="Event, meeting, note, follow-up or alarm"
+                        onPress={addToSelected}
+                        restOpacity={0.8}
+                        touchRestOpacity={0.85}
+                      />
+                    </>
+                  )
+                }
               />
             </View>
           </View>

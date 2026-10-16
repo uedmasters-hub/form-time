@@ -1,6 +1,6 @@
 import { forwardRef, memo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View, type NativeSyntheticEvent } from 'react-native';
-import Svg, { Circle, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Rect, Text as SvgText } from 'react-native-svg';
 
 import { Numeral } from '@/features/clock/components/Numeral';
 
@@ -18,8 +18,11 @@ type DayCellProps = {
   isWeekend: boolean;
   /** Only the selected day is in the tab order (roving focus). */
   isFocusTarget: boolean;
-  /** Holiday markers: a solid dot for a public holiday, a ring for others. */
-  marks?: { public: boolean; other: boolean };
+  /**
+   * Markers under the numeral: a solid dot for a public holiday, a ring for
+   * other holidays and festivals, a small square for the user's own items.
+   */
+  marks?: DayMarks;
   theme: CalendarTheme;
   onPress: () => void;
 };
@@ -30,6 +33,8 @@ type DayCellProps = {
  * title, the arrows, the day panel — uses it.
  */
 export const NUMERAL_INSET = 0.3;
+
+export type DayMarks = { public: boolean; other: boolean; mine: boolean };
 
 /**
  * Vertical layout in the cell's 100-unit box. A single date sits centred
@@ -118,10 +123,11 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
               color={color}
             />
             {marks ? (
-              <HolidayMarks
+              <Marks
                 marks={marks}
                 y={layout.marks}
                 color={isSelected ? theme.onLume : theme.accent}
+                mineColor={isSelected ? theme.onLume : theme.ink}
               />
             ) : null}
             {showSubDay ? (
@@ -144,23 +150,39 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
   );
 });
 
-/** Small marks under the numeral; two side by side when both kinds fall on the day. */
-function HolidayMarks({
+/** Small marks in a centred row under the numeral, 10 units apart. */
+function Marks({
   marks,
   y,
   color,
+  mineColor,
 }: {
-  marks: { public: boolean; other: boolean };
+  marks: DayMarks;
   y: number;
   color: string;
+  mineColor: string;
 }) {
-  const both = marks.public && marks.other;
+  const shown = (['public', 'other', 'mine'] as const).filter((k) => marks[k]);
+  const x = (i: number) => 50 + (i - (shown.length - 1) / 2) * 10;
   return (
     <>
-      {marks.public ? <Circle cx={both ? 45 : 50} cy={y} r={3.4} fill={color} /> : null}
-      {marks.other ? (
-        <Circle cx={both ? 55 : 50} cy={y} r={2.9} fill="none" stroke={color} strokeWidth={1.5} />
-      ) : null}
+      {shown.map((kind, i) =>
+        kind === 'public' ? (
+          <Circle key={kind} cx={x(i)} cy={y} r={3.4} fill={color} />
+        ) : kind === 'other' ? (
+          <Circle
+            key={kind}
+            cx={x(i)}
+            cy={y}
+            r={2.9}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+          />
+        ) : (
+          <Rect key={kind} x={x(i) - 2.9} y={y - 2.9} width={5.8} height={5.8} fill={mineColor} />
+        ),
+      )}
     </>
   );
 }

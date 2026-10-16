@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { ClockTimePicker } from '@/features/events/components/ClockTimePicker';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
 
@@ -28,7 +29,7 @@ type ClockPageProps = {
 };
 
 export function ClockPage({ paused = false }: ClockPageProps) {
-  const { settings, dialTheme, timeZone } = useSettings();
+  const { settings, dialTheme, uiTheme, timeZone } = useSettings();
   const [area, setArea] = useState({ width: 0, height: 0 });
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
@@ -41,14 +42,17 @@ export function ClockPage({ paused = false }: ClockPageProps) {
   return (
     <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>
       {size > 0 ? (
-        <AnalogClock
-          size={size}
-          theme={dialTheme}
-          movement={settings.movement}
-          showSecondHand={settings.secondHand}
-          timeZone={timeZone}
-          paused={paused}
-        />
+        // Point at the dial to add something at that time.
+        <ClockTimePicker size={size} dialTheme={dialTheme} ui={uiTheme} timeZone={timeZone}>
+          <AnalogClock
+            size={size}
+            theme={dialTheme}
+            movement={settings.movement}
+            showSecondHand={settings.secondHand}
+            timeZone={timeZone}
+            paused={paused}
+          />
+        </ClockTimePicker>
       ) : null}
     </View>
   );

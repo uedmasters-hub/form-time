@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
+import { ComposerProvider } from '@/features/events/ComposerProvider';
+import { ReminderHost } from '@/features/events/components/ReminderHost';
 import { ClockPage } from '@/features/clock/components/ClockPage';
 import { PageIndicator } from '@/features/pager/PageIndicator';
 import { RegionButton } from '@/features/region/components/RegionButton';
@@ -47,53 +49,56 @@ export default function Home() {
 
   return (
     <PagerGestureProvider>
-      <View style={[styles.screen, { backgroundColor: uiTheme.page }]}>
-        <SwipePager
-          index={page}
-          onIndexChange={onIndexChange}
-          onSwipeStart={onSwipeStart}
-          progress={progress}
-          reducedMotion={reducedMotion}
-        >
-          <ClockPage paused={page !== CLOCK && !swiping} />
-          <CalendarView topInset={insets.top} bottomInset={insets.bottom + CONTROL_BAND} />
-        </SwipePager>
-
-        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-          <RegionButton
-            onPress={() => setRegionOpen((open) => !open)}
-            style={{
-              position: 'absolute',
-              right: insets.right + EDGE,
-              top: insets.top + EDGE,
-            }}
-          />
-          <SettingsButton
-            onPress={() => setSettingsOpen((open) => !open)}
-            style={{
-              position: 'absolute',
-              left: insets.left + EDGE,
-              bottom: insets.bottom + EDGE,
-            }}
-          />
-          <View
-            pointerEvents="box-none"
-            style={[styles.indicatorRow, { bottom: insets.bottom + EDGE }]}
+      <ComposerProvider>
+        <View style={[styles.screen, { backgroundColor: uiTheme.page }]}>
+          <SwipePager
+            index={page}
+            onIndexChange={onIndexChange}
+            onSwipeStart={onSwipeStart}
+            progress={progress}
+            reducedMotion={reducedMotion}
           >
-            <PageIndicator
-              labels={[...VIEWS]}
-              index={page}
-              progress={progress}
-              onSelect={onIndexChange}
-              activeColor={uiTheme.accent}
-              idleColor={uiTheme.hairline}
-            />
-          </View>
-        </View>
+            <ClockPage paused={page !== CLOCK && !swiping} />
+            <CalendarView topInset={insets.top} bottomInset={insets.bottom + CONTROL_BAND} />
+          </SwipePager>
 
-        <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
-        <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
-      </View>
+          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+            <RegionButton
+              onPress={() => setRegionOpen((open) => !open)}
+              style={{
+                position: 'absolute',
+                right: insets.right + EDGE,
+                top: insets.top + EDGE,
+              }}
+            />
+            <SettingsButton
+              onPress={() => setSettingsOpen((open) => !open)}
+              style={{
+                position: 'absolute',
+                left: insets.left + EDGE,
+                bottom: insets.bottom + EDGE,
+              }}
+            />
+            <View
+              pointerEvents="box-none"
+              style={[styles.indicatorRow, { bottom: insets.bottom + EDGE }]}
+            >
+              <PageIndicator
+                labels={[...VIEWS]}
+                index={page}
+                progress={progress}
+                onSelect={onIndexChange}
+                activeColor={uiTheme.accent}
+                idleColor={uiTheme.hairline}
+              />
+            </View>
+          </View>
+
+          <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+          <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
+          <ReminderHost />
+        </View>
+      </ComposerProvider>
     </PagerGestureProvider>
   );
 }

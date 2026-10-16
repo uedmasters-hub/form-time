@@ -17,7 +17,7 @@ import {
 } from '../calendar-date';
 import { sameMonth, type CalendarSystem, type MonthRef } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
-import { DayCell } from './DayCell';
+import { DayCell, type DayMarks } from './DayCell';
 
 /** The grid's DOM id; the pager leaves arrow keys alone inside it. */
 export const MONTH_GRID_ID = 'ft-month-grid';
@@ -40,6 +40,8 @@ type MonthGridProps = {
   /** Holidays by ISO date for the visible weeks. */
   holidays: Map<string, DayHoliday[]>;
   kindLabels: Record<HolidayKind, string>;
+  /** How many of the user's own items fall on each ISO date. */
+  itemCounts: Map<string, number>;
   onSelect: (date: CalendarDate) => void;
 };
 
@@ -63,6 +65,7 @@ export function MonthGrid({
   theme,
   holidays,
   kindLabels,
+  itemCounts,
   onSelect,
 }: MonthGridProps) {
   const headers = useMemo(() => weekdayNames(weekStart, 'narrow'), [weekStart]);
@@ -171,18 +174,23 @@ export function MonthGrid({
             const isSelected = isSameDay(date, selected);
             const isToday = isSameDay(date, today);
             const wd = weekday(date);
-            const dayHolidays = holidays.get(toISODate(date)) ?? [];
+            const iso = toISODate(date);
+            const dayHolidays = holidays.get(iso) ?? [];
+            const mine = itemCounts.get(iso) ?? 0;
             const label =
               system.longDate(date) +
               (system.secondaryDate ? ` (${system.secondaryDate(date)})` : '') +
               (isToday ? ', today' : '') +
-              dayHolidays.map((h) => `, ${kindLabels[h.kind]}: ${h.name}`).join('');
-            const marks = dayHolidays.length
-              ? {
-                  public: dayHolidays.some((h) => h.kind === 'public'),
-                  other: dayHolidays.some((h) => h.kind !== 'public'),
-                }
-              : undefined;
+              dayHolidays.map((h) => `, ${kindLabels[h.kind]}: ${h.name}`).join('') +
+              (mine ? `, ${mine} ${mine === 1 ? 'item' : 'items'} of yours` : '');
+            const marks: DayMarks | undefined =
+              dayHolidays.length || mine
+                ? {
+                    public: dayHolidays.some((h) => h.kind === 'public'),
+                    other: dayHolidays.some((h) => h.kind !== 'public'),
+                    mine: mine > 0,
+                  }
+                : undefined;
             return (
               <DayCell
                 key={toISODate(date)}

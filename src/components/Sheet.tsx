@@ -27,8 +27,11 @@ type SheetProps = {
   visible: boolean;
   onClose: () => void;
   title: string;
-  /** Which corner control the panel opens from on wide screens. */
-  anchor: 'bottom-left' | 'top-right';
+  /**
+   * Where the panel opens on wide screens: beside the corner control that
+   * opened it, or centred for content that isn't tied to a control.
+   */
+  anchor: 'bottom-left' | 'top-right' | 'center';
   children: ReactNode;
 };
 
@@ -90,21 +93,29 @@ export function Sheet({ visible, onClose, title, anchor, children }: SheetProps)
         borderTopRightRadius: 22,
         paddingBottom: insets.bottom,
       }
-    : anchor === 'bottom-left'
+    : anchor === 'center'
       ? {
-          left: insets.left + 16,
-          bottom: insets.bottom + 68,
+          left: Math.max(16, (width - PANEL_WIDTH) / 2),
+          top: Math.max(insets.top + 24, height * 0.08),
           width: PANEL_WIDTH,
-          maxHeight: height - insets.top - insets.bottom - 100,
+          maxHeight: height - Math.max(insets.top + 24, height * 0.08) - insets.bottom - 24,
           borderRadius: 22,
         }
-      : {
-          right: insets.right + 16,
-          top: insets.top + 68,
-          width: PANEL_WIDTH,
-          maxHeight: height - insets.top - insets.bottom - 100,
-          borderRadius: 22,
-        };
+      : anchor === 'bottom-left'
+        ? {
+            left: insets.left + 16,
+            bottom: insets.bottom + 68,
+            width: PANEL_WIDTH,
+            maxHeight: height - insets.top - insets.bottom - 100,
+            borderRadius: 22,
+          }
+        : {
+            right: insets.right + 16,
+            top: insets.top + 68,
+            width: PANEL_WIDTH,
+            maxHeight: height - insets.top - insets.bottom - 100,
+            borderRadius: 22,
+          };
 
   return (
     <Modal transparent visible animationType="none" onRequestClose={onClose}>

@@ -14,11 +14,14 @@ type MonthHeaderProps = {
   month: number;
   theme: CalendarTheme;
   showToday: boolean;
+  /** Type and control scale; 1 at the base layout size. */
+  scale: number;
   onPrevious: () => void;
   onNext: () => void;
   onToday: () => void;
 };
 
+const MONTH_SIZE = 30;
 const YEAR_HEIGHT = 17;
 const YEAR_STROKE = 2.4;
 
@@ -28,30 +31,40 @@ export function MonthHeader({
   month,
   theme,
   showToday,
+  scale,
   onPrevious,
   onNext,
   onToday,
 }: MonthHeaderProps) {
   const monthName = formatDate({ year, month, day: 1 }, { month: 'long' });
   const yearText = String(year);
-  const yearWidth = (layoutNumeral(yearText).width / GLYPH_HEIGHT) * YEAR_HEIGHT + YEAR_STROKE * 2;
+  const yearHeight = YEAR_HEIGHT * scale;
+  const yearStroke = YEAR_STROKE * scale;
+  const yearWidth = (layoutNumeral(yearText).width / GLYPH_HEIGHT) * yearHeight + yearStroke * 2;
+  const iconSize = Math.round(20 * Math.min(scale, 1.3));
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { minHeight: 48 * scale }]}>
       <View
         style={styles.title}
         accessibilityRole="header"
         accessibilityLabel={formatDate({ year, month, day: 1 }, { month: 'long', year: 'numeric' })}
         accessible
       >
-        <Text style={[styles.month, { color: theme.ink }]}>{monthName}</Text>
-        <Svg width={yearWidth} height={YEAR_HEIGHT + YEAR_STROKE * 2} style={styles.year}>
+        <Text style={[styles.month, { color: theme.ink, fontSize: MONTH_SIZE * scale }]}>
+          {monthName}
+        </Text>
+        <Svg
+          width={yearWidth}
+          height={yearHeight + yearStroke * 2}
+          style={[styles.year, { marginLeft: 12 * scale, marginTop: 4 * scale }]}
+        >
           <Numeral
             text={yearText}
             x={yearWidth / 2}
-            y={(YEAR_HEIGHT + YEAR_STROKE * 2) / 2}
-            height={YEAR_HEIGHT}
-            strokeWidth={YEAR_STROKE}
+            y={(yearHeight + yearStroke * 2) / 2}
+            height={yearHeight}
+            strokeWidth={yearStroke}
             color={theme.accent}
           />
         </Svg>
@@ -69,13 +82,21 @@ export function MonthHeader({
               pressed && { backgroundColor: theme.hover },
             ]}
           >
-            <Text style={[styles.todayText, { color: theme.accent }]}>Today</Text>
+            <Text
+              style={[
+                styles.todayText,
+                { color: theme.accent, fontSize: 13 * Math.min(scale, 1.3) },
+              ]}
+            >
+              Today
+            </Text>
           </Pressable>
         ) : null}
         <QuietIconButton
           icon={ChevronLeft}
           label="Previous month"
           onPress={onPrevious}
+          iconSize={iconSize}
           restOpacity={0.55}
           touchRestOpacity={0.7}
         />
@@ -83,6 +104,7 @@ export function MonthHeader({
           icon={ChevronRight}
           label="Next month"
           onPress={onNext}
+          iconSize={iconSize}
           restOpacity={0.55}
           touchRestOpacity={0.7}
         />
@@ -96,7 +118,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 48,
   },
   title: {
     flexDirection: 'row',
@@ -104,14 +125,11 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   month: {
-    fontSize: 30,
     fontWeight: '300',
     letterSpacing: 0.2,
   },
   year: {
-    marginLeft: 12,
     alignSelf: 'center',
-    marginTop: 4,
   },
   controls: {
     flexDirection: 'row',

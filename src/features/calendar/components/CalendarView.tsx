@@ -23,9 +23,17 @@ type CalendarViewProps = {
   topInset: number;
 };
 
+/** Sizes at scale 1, the reference layout with 76 pt day cells. */
+const BASE_CELL = 76;
 const PANEL_WIDTH = 240;
 const COLUMN_GAP = 72;
 const HEADER_BLOCK = 48 + 20 + 28; // header row, its margin, weekday labels
+const PANEL_OFFSET = 76; // lines the panel's first line up with the weekday labels
+
+/** Day-cell limits: wide layouts grow with the screen up to MAX_WIDE_CELL. */
+const MIN_CELL = 44;
+const MAX_WIDE_CELL = 124;
+const MAX_NARROW_CELL = 84;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -67,18 +75,24 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   const padding = wide ? 56 : 20;
   const usableHeight = area.height - topInset - bottomInset - padding * 2;
 
+  // Everything beside the grid (header, panel, gap) grows with the cells, so
+  // solve for the cell size that fills the height, or the width, first.
   const cellSize = wide
     ? Math.floor(
         clamp(
           Math.min(
-            (area.width - padding * 2 - PANEL_WIDTH - COLUMN_GAP) / 7,
-            (usableHeight - HEADER_BLOCK) / 6,
+            usableHeight / (6 + HEADER_BLOCK / BASE_CELL),
+            (area.width - padding * 2) / (7 + (PANEL_WIDTH + COLUMN_GAP) / BASE_CELL),
           ),
-          44,
-          76,
+          MIN_CELL,
+          MAX_WIDE_CELL,
         ),
       )
-    : Math.floor(clamp((area.width - padding * 2) / 7, 38, 84));
+    : Math.floor(clamp((area.width - padding * 2) / 7, 38, MAX_NARROW_CELL));
+
+  // Type and spacing follow the cells: 1 at the reference size, larger on
+  // big screens (phones keep the base size; tablets grow a little).
+  const scale = wide ? clamp(cellSize / BASE_CELL, 1, 1.65) : clamp(cellSize / 64, 1, 1.3);
 
   const showToday = !isSameMonth({ ...visible, day: 1 }, today) || !isSameDay(selected, today);
 
@@ -104,11 +118,12 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 month={visible.month}
                 theme={theme}
                 showToday={showToday}
+                scale={scale}
                 onPrevious={() => shiftMonth(-1)}
                 onNext={() => shiftMonth(1)}
                 onToday={goToday}
               />
-              <View style={styles.gridGap} />
+              <View style={{ height: 20 * scale }} />
               <MonthGrid
                 year={visible.year}
                 month={visible.month}
@@ -116,6 +131,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 today={today}
                 weekStart={weekStart}
                 cellSize={cellSize}
+                scale={scale}
                 theme={theme}
                 onSelect={select}
               />
@@ -124,15 +140,24 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
             <View
               style={
                 wide
-                  ? { width: PANEL_WIDTH, marginLeft: COLUMN_GAP, paddingTop: 76 }
-                  : { width: cellSize * 7, marginTop: 36, paddingHorizontal: cellSize * 0.18 }
+                  ? {
+                      width: PANEL_WIDTH * scale,
+                      marginLeft: COLUMN_GAP * scale,
+                      paddingTop: PANEL_OFFSET * scale,
+                    }
+                  : {
+                      width: cellSize * 7,
+                      marginTop: 36 * scale,
+                      paddingHorizontal: cellSize * 0.18,
+                    }
               }
             >
               <DayPanel
                 date={selected}
                 isToday={isSameDay(selected, today)}
                 theme={theme}
-                numeralHeight={wide ? 64 : 44}
+                numeralHeight={(wide ? 64 : 44) * scale}
+                scale={scale}
               />
             </View>
           </View>
@@ -159,8 +184,5 @@ const styles = StyleSheet.create({
   },
   narrowColumn: {
     alignItems: 'center',
-  },
-  gridGap: {
-    height: 20,
   },
 });

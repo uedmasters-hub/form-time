@@ -30,6 +30,8 @@ type MonthGridProps = {
   today: CalendarDate;
   weekStart: Weekday;
   cellSize: number;
+  /** Type scale for the weekday labels; 1 at the base layout size. */
+  scale: number;
   theme: CalendarTheme;
   onSelect: (date: CalendarDate) => void;
 };
@@ -55,6 +57,7 @@ export function MonthGrid({
   today,
   weekStart,
   cellSize,
+  scale,
   theme,
   onSelect,
 }: MonthGridProps) {
@@ -140,9 +143,15 @@ export function MonthGrid({
         accessibilityElementsHidden
       >
         {headers.map((name, i) => (
-          <View key={i} style={[styles.header, { width: cellSize }]}>
+          <View key={i} style={[styles.header, { width: cellSize, height: 28 * scale }]}>
             <Text
-              style={[styles.headerText, { color: weekendColumns[i] ? theme.accent : theme.muted }]}
+              style={[
+                styles.headerText,
+                {
+                  color: weekendColumns[i] ? theme.accent : theme.muted,
+                  fontSize: 11 * Math.min(scale, 1.35),
+                },
+              ]}
             >
               {name.toLocaleUpperCase()}
             </Text>
@@ -188,12 +197,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   header: {
-    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerText: {
-    fontSize: 11,
     fontWeight: '500',
     letterSpacing: 1.6,
   },

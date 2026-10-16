@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
 
 import { Numeral } from '@/features/clock/components/Numeral';
+import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 import { GLYPH_HEIGHT, layoutNumeral } from '@/features/clock/numerals';
 
 import { formatDate, type CalendarDate } from '../calendar-date';
@@ -10,6 +11,9 @@ import type { CalendarTheme } from '../calendar-theme';
 type DayPanelProps = {
   date: CalendarDate;
   isToday: boolean;
+  /** Holidays and festivals on this day, public first. */
+  holidays: DayHoliday[];
+  kindLabels: Record<HolidayKind, string>;
   theme: CalendarTheme;
   /** Large date numeral height. */
   numeralHeight: number;
@@ -21,11 +25,13 @@ type DayPanelProps = {
 
 /**
  * The selected day, set like the dial: a large monoline numeral, the weekday
- * above it, and its (currently empty) agenda below a hairline.
+ * above it, and the day's holidays and festivals below a hairline.
  */
 export function DayPanel({
   date,
   isToday,
+  holidays,
+  kindLabels,
   theme,
   numeralHeight,
   scale = 1,
@@ -49,7 +55,11 @@ export function DayPanel({
         day: 'numeric',
         month: 'long',
         year: 'numeric',
-      })}${isToday ? ', today' : ''}. No events.`}
+      })}${isToday ? ', today' : ''}. ${
+        holidays.length
+          ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describe(h)}`).join('. ')
+          : 'No holidays or festivals'
+      }.`}
     >
       <Text
         style={[
@@ -86,13 +96,67 @@ export function DayPanel({
           { backgroundColor: theme.hairline, marginTop: 24 * scale, marginBottom: 16 * scale },
         ]}
       />
-      <Text
-        style={[styles.empty, { color: theme.muted, fontSize: 13 * type }, end && styles.textEnd]}
-      >
-        No events
-      </Text>
+      {holidays.length === 0 ? (
+        <Text
+          style={[styles.empty, { color: theme.muted, fontSize: 13 * type }, end && styles.textEnd]}
+        >
+          No holidays or festivals
+        </Text>
+      ) : (
+        holidays.map((h, i) => (
+          <View
+            key={`${h.name}-${i}`}
+            style={[
+              styles.holiday,
+              { marginTop: i === 0 ? 0 : 14 * scale },
+              end && styles.panelEnd,
+            ]}
+          >
+            <Text
+              style={[
+                styles.kind,
+                {
+                  color: h.kind === 'public' ? theme.accent : theme.muted,
+                  fontSize: 10 * type,
+                },
+                end && styles.textEnd,
+              ]}
+            >
+              {kindLabels[h.kind].toLocaleUpperCase()}
+            </Text>
+            <Text
+              style={[
+                styles.holidayName,
+                { color: theme.ink, fontSize: 15 * type },
+                end && styles.textEnd,
+              ]}
+            >
+              {h.name}
+            </Text>
+            {describe(h) ? (
+              <Text
+                style={[
+                  styles.holidayNote,
+                  { color: theme.muted, fontSize: 12 * type },
+                  end && styles.textEnd,
+                ]}
+              >
+                {describe(h).replace(/^, /, '')}
+              </Text>
+            ) : null}
+          </View>
+        ))
+      )}
     </View>
   );
+}
+
+/** ", day 6 of 9 · Kathmandu Valley only" — or "" when there's nothing to add. */
+function describe(h: DayHoliday): string {
+  const parts = [h.dayOf ? `day ${h.dayOf[0]} of ${h.dayOf[1]}` : '', h.note ?? ''].filter(Boolean);
+  if (!parts.length) return '';
+  const text = parts.join(' · ');
+  return `, ${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
 const styles = StyleSheet.create({
@@ -122,5 +186,20 @@ const styles = StyleSheet.create({
   },
   empty: {
     letterSpacing: 0.3,
+  },
+  holiday: {
+    alignItems: 'flex-start',
+  },
+  kind: {
+    fontWeight: '600',
+    letterSpacing: 1.6,
+  },
+  holidayName: {
+    marginTop: 3,
+    fontWeight: '400',
+  },
+  holidayNote: {
+    marginTop: 2,
+    lineHeight: 17,
   },
 });

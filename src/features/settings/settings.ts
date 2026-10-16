@@ -1,4 +1,5 @@
 import { DIALS, LUMES, type DialId, type LumeId } from '@/features/clock/dial-palettes';
+import { DEFAULT_REGION, REGIONS, areaOf, type RegionCode } from '@/features/region/regions';
 
 /**
  * User preferences for the clock and calendar. Plain data: validated on
@@ -19,6 +20,14 @@ export type Settings = {
   size: ClockSize;
   secondHand: boolean;
   weekStart: WeekStartSetting;
+  /** Country whose time and holidays are shown. */
+  region: RegionCode;
+  /** Time zone / state within the region (see regions.ts). */
+  area: string;
+  /** Calendar overlays. */
+  showPublicHolidays: boolean;
+  showRestrictedHolidays: boolean;
+  showFestivals: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +38,11 @@ export const DEFAULT_SETTINGS: Settings = {
   size: 'classic',
   secondHand: true,
   weekStart: 'locale',
+  region: DEFAULT_REGION,
+  area: DEFAULT_REGION,
+  showPublicHolidays: true,
+  showRestrictedHolidays: true,
+  showFestivals: true,
 };
 
 export const APPEARANCES: readonly { id: Appearance; label: string }[] = [
@@ -60,10 +74,17 @@ const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback
     ? (value as T)
     : fallback;
 
+const bool = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
+
 /** Accepts anything (e.g. parsed JSON) and returns complete, valid settings. */
 export function sanitizeSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
+  const region = oneOf(
+    r.region,
+    REGIONS.map((x) => x.code),
+    d.region,
+  );
   return {
     appearance: oneOf(
       r.appearance,
@@ -96,5 +117,10 @@ export function sanitizeSettings(raw: unknown): Settings {
       WEEK_STARTS.map((w) => w.id),
       d.weekStart,
     ),
+    region,
+    area: areaOf(region, typeof r.area === 'string' ? r.area : undefined).id,
+    showPublicHolidays: bool(r.showPublicHolidays, d.showPublicHolidays),
+    showRestrictedHolidays: bool(r.showRestrictedHolidays, d.showRestrictedHolidays),
+    showFestivals: bool(r.showFestivals, d.showFestivals),
   };
 }

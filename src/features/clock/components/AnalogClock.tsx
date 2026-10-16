@@ -17,11 +17,22 @@ type AnalogClockProps = {
   /** Second-hand movement. Reduce motion always uses the one-second quartz step. */
   movement?: ClockMovement;
   showSecondHand?: boolean;
+  /** IANA time zone to show; defaults to the device's. */
+  timeZone?: string;
   /** Stop redrawing, e.g. while another view covers the clock. */
   paused?: boolean;
 };
 
-const timeLabel = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+const timeLabels = new Map<string, Intl.DateTimeFormat>();
+function formatTime(date: Date, timeZone?: string) {
+  const key = timeZone ?? 'local';
+  let f = timeLabels.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZone });
+    timeLabels.set(key, f);
+  }
+  return f.format(date);
+}
 
 /**
  * Live analog clock, drawn as stacked SVG layers: a static dial that renders
@@ -33,6 +44,7 @@ export function AnalogClock({
   theme = defaultDialTheme,
   movement = 'smooth',
   showSecondHand = true,
+  timeZone,
   paused = false,
 }: AnalogClockProps) {
   // SVG ids are document-global on web; React ids can contain characters
@@ -44,7 +56,7 @@ export function AnalogClock({
   // a once-a-second update is plenty.
   const effectiveMovement: ClockMovement = reducedMotion || !showSecondHand ? 'quartz' : movement;
   const now = useClockTime(effectiveMovement, paused);
-  const angles = getHandAngles(now, { secondStep: SECOND_STEP[effectiveMovement] });
+  const angles = getHandAngles(now, { secondStep: SECOND_STEP[effectiveMovement], timeZone });
 
   // Pointer hover (mouse, trackpad, stylus). Touch screens never hover, so the
   // rim simply stays hidden there.
@@ -55,7 +67,7 @@ export function AnalogClock({
       style={{ width: size, height: size }}
       accessible
       accessibilityRole="image"
-      accessibilityLabel={`Clock showing ${timeLabel.format(now)}`}
+      accessibilityLabel={`Clock showing ${formatTime(now, timeZone)}`}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >

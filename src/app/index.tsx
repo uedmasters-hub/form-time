@@ -7,6 +7,8 @@ import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
 import { ClockPage } from '@/features/clock/components/ClockPage';
 import { PageIndicator } from '@/features/pager/PageIndicator';
+import { RegionButton } from '@/features/region/components/RegionButton';
+import { RegionSheet } from '@/features/region/components/RegionSheet';
 import { PagerGestureProvider } from '@/features/pager/pager-context';
 import { SwipePager } from '@/features/pager/SwipePager';
 import { SettingsSheet } from '@/features/settings/components/SettingsSheet';
@@ -30,6 +32,7 @@ export default function Home() {
   const progress = useSharedValue(0);
   const { uiTheme } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
 
   const [page, setPage] = useState(CLOCK);
   // True while a finger/pointer is moving the pages, so the clock keeps
@@ -57,6 +60,14 @@ export default function Home() {
         </SwipePager>
 
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <RegionButton
+            onPress={() => setRegionOpen((open) => !open)}
+            style={{
+              position: 'absolute',
+              right: insets.right + EDGE,
+              top: insets.top + EDGE,
+            }}
+          />
           <SettingsButton
             onPress={() => setSettingsOpen((open) => !open)}
             style={{
@@ -81,6 +92,7 @@ export default function Home() {
         </View>
 
         <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
       </View>
     </PagerGestureProvider>
   );

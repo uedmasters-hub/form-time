@@ -1,3 +1,5 @@
+import { zonedParts } from '@/features/region/zoned-time';
+
 /**
  * Calendar dates without time zones.
  *
@@ -28,8 +30,12 @@ function fromUtcMs(ms: number): CalendarDate {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
-/** Today's date in the device's local time zone. */
-export function today(now: Date = new Date()): CalendarDate {
+/** Today's date in the given IANA time zone, or the device's. */
+export function today(now: Date = new Date(), timeZone?: string): CalendarDate {
+  if (timeZone) {
+    const p = zonedParts(now, timeZone);
+    return { year: p.year, month: p.month, day: p.day };
+  }
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
 }
 

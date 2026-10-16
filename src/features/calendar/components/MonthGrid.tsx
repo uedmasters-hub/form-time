@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
+import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 import { useSwipeAwarePress } from '@/features/pager/pager-context';
 
 import {
@@ -33,6 +34,9 @@ type MonthGridProps = {
   /** Type scale for the weekday labels; 1 at the base layout size. */
   scale: number;
   theme: CalendarTheme;
+  /** Holidays by ISO date for the visible weeks. */
+  holidays: Map<string, DayHoliday[]>;
+  kindLabels: Record<HolidayKind, string>;
   onSelect: (date: CalendarDate) => void;
 };
 
@@ -59,6 +63,8 @@ export function MonthGrid({
   cellSize,
   scale,
   theme,
+  holidays,
+  kindLabels,
   onSelect,
 }: MonthGridProps) {
   const days = useMemo(() => monthGrid(year, month, weekStart), [year, month, weekStart]);
@@ -165,7 +171,17 @@ export function MonthGrid({
             const isSelected = isSameDay(date, selected);
             const isToday = isSameDay(date, today);
             const wd = weekday(date);
-            const label = formatDate(date, FULL_DATE) + (isToday ? ', today' : '');
+            const dayHolidays = holidays.get(toISODate(date)) ?? [];
+            const label =
+              formatDate(date, FULL_DATE) +
+              (isToday ? ', today' : '') +
+              dayHolidays.map((h) => `, ${kindLabels[h.kind]}: ${h.name}`).join('');
+            const marks = dayHolidays.length
+              ? {
+                  public: dayHolidays.some((h) => h.kind === 'public'),
+                  other: dayHolidays.some((h) => h.kind !== 'public'),
+                }
+              : undefined;
             return (
               <DayCell
                 key={toISODate(date)}
@@ -181,6 +197,7 @@ export function MonthGrid({
                 isOutsideMonth={date.month !== month}
                 isWeekend={wd === 0 || wd === 6}
                 isFocusTarget={isSelected}
+                marks={marks}
                 theme={theme}
                 onPress={() => select(date)}
               />

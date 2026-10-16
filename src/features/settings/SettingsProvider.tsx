@@ -13,6 +13,7 @@ import { defaultWeekStart, type Weekday } from '@/features/calendar/calendar-dat
 import { calendarThemeFrom, type CalendarTheme } from '@/features/calendar/calendar-theme';
 import { dayDialTheme, nightDialTheme } from '@/features/clock/dial-palettes';
 import type { DialTheme } from '@/features/clock/dial-theme';
+import { areaOf, detectRegion, type Area } from '@/features/region/regions';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { DEFAULT_SETTINGS, type Settings, type WeekStartSetting } from './settings';
@@ -28,6 +29,9 @@ type SettingsContextValue = {
   /** Calendar, panel and control colours — derived from the dial. */
   uiTheme: CalendarTheme;
   weekStart: Weekday;
+  /** Selected area of the selected region: its IANA zone and labels. */
+  area: Area;
+  timeZone: string;
 };
 
 const WEEKDAY_OF: Record<Exclude<WeekStartSetting, 'locale'>, Weekday> = {
@@ -46,7 +50,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = loadSettings();
-    if (stored) setSettings(stored);
+    // First visit: start in the region the device is set to, if supported.
+    setSettings(stored ?? { ...DEFAULT_SETTINGS, ...detectRegion() });
     loaded.current = true;
   }, []);
 
@@ -57,7 +62,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((current) => ({ ...current, ...patch }));
   }, []);
-  const reset = useCallback(() => setSettings(DEFAULT_SETTINGS), []);
+  // Resets the clock and calendar look; the chosen region stays as it is.
+  const reset = useCallback(
+    () =>
+      setSettings((current) => ({
+        ...DEFAULT_SETTINGS,
+        region: current.region,
+        area: current.area,
+        showPublicHolidays: current.showPublicHolidays,
+        showRestrictedHolidays: current.showRestrictedHolidays,
+        showFestivals: current.showFestivals,
+      })),
+    [],
+  );
 
   const scheme = useColorScheme();
   const mode: 'day' | 'night' =
@@ -73,6 +90,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       mode,
       dialTheme,
       uiTheme: calendarThemeFrom(dialTheme),
+      area: areaOf(settings.region, settings.area),
+      timeZone: areaOf(settings.region, settings.area).timeZone,
       weekStart:
         settings.weekStart === 'locale' ? defaultWeekStart() : WEEKDAY_OF[settings.weekStart],
     };

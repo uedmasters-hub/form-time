@@ -28,7 +28,7 @@ type ClockPageProps = {
 };
 
 export function ClockPage({ paused = false }: ClockPageProps) {
-  const { settings, dialTheme } = useSettings();
+  const { settings, dialTheme, timeZone } = useSettings();
   const [area, setArea] = useState({ width: 0, height: 0 });
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
@@ -46,6 +46,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
           theme={dialTheme}
           movement={settings.movement}
           showSecondHand={settings.secondHand}
+          timeZone={timeZone}
           paused={paused}
         />
       ) : null}

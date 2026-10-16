@@ -1,11 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { holidaysByDay, KIND_LABELS } from '@/features/holidays/holidays';
 import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
-import { addMonths, isSameDay, isSameMonth, type CalendarDate } from '../calendar-date';
+import {
+  addMonths,
+  isSameDay,
+  isSameMonth,
+  monthGrid,
+  toISODate,
+  type CalendarDate,
+} from '../calendar-date';
 import { useToday } from '../use-today';
 import { DayPanel } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
@@ -23,6 +31,8 @@ const PANEL_WIDTH = 240;
 const COLUMN_GAP = 72;
 const HEADER_BLOCK = 48 + 20 + 28; // header row, its margin, weekday labels
 const PANEL_OFFSET = 76; // lines the panel's first line up with the weekday labels
+/** Height of the top-right region control, kept clear on narrow layouts. */
+const TOP_CONTROL_BAND = 44;
 
 /** Day-cell limits: wide layouts grow with the screen up to MAX_WIDE_CELL. */
 const MIN_CELL = 44;
@@ -35,12 +45,13 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 /**
  * Month view centred on the page, with the selected day set apart at the
- * right edge (wide screens) or below the grid (narrow screens). Scrolls vertically when the screen is short; horizontal
- * swipes are left to the pager that switches between Clock and Calendar.
+ * right edge (wide screens) or below the grid (narrow screens). "Today" and
+ * the holidays follow the chosen region. Scrolls vertically when the screen
+ * is short; horizontal swipes are left to the pager (Clock ↔ Calendar).
  */
 export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
-  const { uiTheme: theme, weekStart } = useSettings();
-  const today = useToday();
+  const { uiTheme: theme, weekStart, settings, timeZone } = useSettings();
+  const today = useToday(timeZone);
 
   const [selected, setSelected] = useState<CalendarDate>(today);
   const [visible, setVisible] = useState({ year: today.year, month: today.month });
@@ -65,6 +76,48 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
     });
 
   const goToday = () => select(today);
+
+  // When "today" moves (midnight, or a region in another time zone) and the
+  // selection was on the old today, follow it.
+  const previousToday = useRef(today);
+  useEffect(() => {
+    const before = previousToday.current;
+    previousToday.current = today;
+    if (!isSameDay(before, today)) {
+      setSelected((s) => (isSameDay(s, before) ? today : s));
+      setVisible((v) =>
+        v.year === before.year && v.month === before.month
+          ? { year: today.year, month: today.month }
+          : v,
+      );
+    }
+  }, [today]);
+
+  const filters = useMemo(
+    () => ({
+      public: settings.showPublicHolidays,
+      restricted: settings.showRestrictedHolidays,
+      festival: settings.showFestivals,
+    }),
+    [settings.showPublicHolidays, settings.showRestrictedHolidays, settings.showFestivals],
+  );
+
+  // Holidays for the six visible weeks, plus the selected day (which may be
+  // in another month after paging).
+  const gridHolidays = useMemo(() => {
+    const days = monthGrid(visible.year, visible.month, weekStart);
+    return holidaysByDay(settings.region, settings.area, days[0], days[41], filters);
+  }, [visible, weekStart, settings.region, settings.area, filters]);
+  const selectedHolidays = useMemo(
+    () =>
+      gridHolidays.get(toISODate(selected)) ??
+      holidaysByDay(settings.region, settings.area, selected, selected, filters).get(
+        toISODate(selected),
+      ) ??
+      [],
+    [gridHolidays, selected, settings.region, settings.area, filters],
+  );
+  const kindLabels = KIND_LABELS[settings.region];
 
   // Wide: the grid is centred on the page and the day panel sits at the right
   // edge, so each side of the grid must leave room for panel + gap. Everything
@@ -102,7 +155,8 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
           contentContainerStyle={[
             styles.content,
             {
-              paddingTop: topInset + padding,
+              // Narrow layouts: clear the region code in the top-right corner.
+              paddingTop: topInset + padding + (wide ? 0 : TOP_CONTROL_BAND),
               paddingBottom: bottomInset + padding,
               paddingHorizontal: padding,
             },
@@ -132,6 +186,8 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 cellSize={cellSize}
                 scale={scale}
                 theme={theme}
+                holidays={gridHolidays}
+                kindLabels={kindLabels}
                 onSelect={select}
               />
             </View>
@@ -156,6 +212,8 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               <DayPanel
                 date={selected}
                 isToday={isSameDay(selected, today)}
+                holidays={selectedHolidays}
+                kindLabels={kindLabels}
                 theme={theme}
                 numeralHeight={(wide ? 64 : 44) * scale}
                 scale={scale}

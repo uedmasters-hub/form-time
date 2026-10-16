@@ -3,17 +3,17 @@ import { useEffect, useState } from 'react';
 import { today as currentDate, type CalendarDate } from './calendar-date';
 
 /**
- * Today's date, kept current: re-reads the clock just after each local
- * midnight, and whenever the app regains focus on web (sleep, tab switch).
+ * Today's date in the given time zone (or the device's), kept current:
+ * re-checked at every minute boundary — so midnight in any zone is caught
+ * within a minute — and whenever the page becomes visible again.
  */
-export function useToday(): CalendarDate {
-  const [date, setDate] = useState(() => currentDate());
+export function useToday(timeZone?: string): CalendarDate {
+  const [date, setDate] = useState(() => currentDate(new Date(), timeZone));
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
     const refresh = () => {
       setDate((previous) => {
-        const next = currentDate();
+        const next = currentDate(new Date(), timeZone);
         return previous.year === next.year &&
           previous.month === next.month &&
           previous.day === next.day
@@ -21,15 +21,16 @@ export function useToday(): CalendarDate {
           : next;
       });
     };
+    refresh();
+
+    let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
-      const now = new Date();
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       timer = setTimeout(
         () => {
           refresh();
           schedule();
         },
-        midnight.getTime() - now.getTime() + 50,
+        60_000 - (Date.now() % 60_000) + 50,
       );
     };
     schedule();
@@ -45,7 +46,7 @@ export function useToday(): CalendarDate {
         document.removeEventListener('visibilitychange', onVisible);
       }
     };
-  }, []);
+  }, [timeZone]);
 
   return date;
 }

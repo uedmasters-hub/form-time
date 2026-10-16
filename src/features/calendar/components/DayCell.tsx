@@ -16,6 +16,8 @@ type DayCellProps = {
   isWeekend: boolean;
   /** Only the selected day is in the tab order (roving focus). */
   isFocusTarget: boolean;
+  /** Holiday markers: a solid dot for a public holiday, a ring for others. */
+  marks?: { public: boolean; other: boolean };
   theme: CalendarTheme;
   onPress: () => void;
 };
@@ -34,6 +36,7 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
     isOutsideMonth,
     isWeekend,
     isFocusTarget,
+    marks,
     theme,
     onPress,
   },
@@ -91,11 +94,33 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
             strokeWidth={isToday || isSelected ? 4 : 3.4}
             color={color}
           />
+          {marks ? (
+            <HolidayMarks marks={marks} color={isSelected ? theme.onLume : theme.accent} />
+          ) : null}
         </Svg>
       )}
     </Pressable>
   );
 });
+
+/** Small marks under the numeral; two side by side when both kinds fall on the day. */
+function HolidayMarks({
+  marks,
+  color,
+}: {
+  marks: { public: boolean; other: boolean };
+  color: string;
+}) {
+  const both = marks.public && marks.other;
+  return (
+    <>
+      {marks.public ? <Circle cx={both ? 45 : 50} cy={76} r={3.4} fill={color} /> : null}
+      {marks.other ? (
+        <Circle cx={both ? 55 : 50} cy={76} r={2.9} fill="none" stroke={color} strokeWidth={1.5} />
+      ) : null}
+    </>
+  );
+}
 
 export const DayCell = memo(DayCellImpl);
 

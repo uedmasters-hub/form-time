@@ -1,3 +1,5 @@
+import { zonedParts } from '@/features/region/zoned-time';
+
 /**
  * Pure clock geometry. No React, no rendering — safe to unit-test.
  *
@@ -37,16 +39,28 @@ export type HandAngles = {
 };
 
 /**
- * Hand angles in degrees, clockwise from 12, for the device's local time.
+ * Hand angles in degrees, clockwise from 12.
  * `secondStep` is the size of one second-hand step in seconds: 1 for a
  * quartz tick, 1/8 for a mechanical beat, 0 for a continuous sweep.
+ * `timeZone` (IANA) shows that zone's time; omitted, the device's.
  */
-export function getHandAngles(date: Date, { secondStep }: { secondStep: number }): HandAngles {
-  const exact = date.getSeconds() + date.getMilliseconds() / 1000;
+export function getHandAngles(
+  date: Date,
+  { secondStep, timeZone }: { secondStep: number; timeZone?: string },
+): HandAngles {
+  const wall = timeZone
+    ? zonedParts(date, timeZone)
+    : {
+        hours: date.getHours(),
+        minutes: date.getMinutes(),
+        seconds: date.getSeconds(),
+        milliseconds: date.getMilliseconds(),
+      };
+  const exact = wall.seconds + wall.milliseconds / 1000;
   // Snap to the step; the epsilon keeps a value like 2.9999 from flooring short.
   const seconds = secondStep > 0 ? Math.floor(exact / secondStep + 1e-6) * secondStep : exact;
-  const minutes = date.getMinutes() + seconds / 60;
-  const hours = (date.getHours() % 12) + minutes / 60;
+  const minutes = wall.minutes + seconds / 60;
+  const hours = (wall.hours % 12) + minutes / 60;
 
   return {
     hour: hours * 30,

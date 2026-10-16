@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
 
 /**
  * How the second hand moves.
@@ -13,10 +12,15 @@ export type ClockMovement = 'sweep' | 'tick';
 
 const SWEEP_FRAME_MS = 1000 / 30;
 
-export function useClockTime(movement: ClockMovement): Date {
+/**
+ * @param paused Stop updating (e.g. the clock is off screen). The hands jump
+ *   straight to the correct time when resumed.
+ */
+export function useClockTime(movement: ClockMovement, paused = false): Date {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
+    if (paused) return;
     setNow(new Date());
 
     if (movement === 'tick') {
@@ -44,30 +48,7 @@ export function useClockTime(movement: ClockMovement): Date {
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [movement]);
+  }, [movement, paused]);
 
   return now;
-}
-
-/** System "reduce motion" preference, kept live. */
-export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((value) => {
-        if (mounted) setReduced(value);
-      })
-      .catch(() => {
-        // Unsupported platform: keep the default (motion allowed).
-      });
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return reduced;
 }

@@ -9,6 +9,13 @@ body,
   margin: 0;
 }
 
+/* Horizontal swipes switch Clock ↔ Calendar; don't let them trigger the
+   browser's back/forward navigation or rubber-band the page. */
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

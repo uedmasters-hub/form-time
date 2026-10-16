@@ -30,20 +30,20 @@ const SECOND_PATH = secondHandOutline();
  * stacked higher above the dial cast a longer shadow.
  */
 const SHADOW = {
-  hour: { dx: 5, dy: 11 },
-  minute: { dx: 7, dy: 14 },
-  second: { dx: 8, dy: 16 },
-  hub: { dx: 4, dy: 12 },
+  hour: { dx: 4, dy: 8 },
+  minute: { dx: 5, dy: 10 },
+  second: { dx: 6, dy: 12 },
+  hub: { dx: 3, dy: 8 },
 } as const;
 
 /** Widening, faint strokes that together read as a soft blur. */
 const SHADOW_PASSES = [
-  { width: 56, opacity: 0.035 },
-  { width: 46, opacity: 0.045 },
-  { width: 36, opacity: 0.05 },
-  { width: 27, opacity: 0.06 },
-  { width: 18, opacity: 0.065 },
-  { width: 10, opacity: 0.075 },
+  { width: 56, opacity: 0.016 },
+  { width: 46, opacity: 0.02 },
+  { width: 36, opacity: 0.024 },
+  { width: 27, opacity: 0.028 },
+  { width: 18, opacity: 0.032 },
+  { width: 10, opacity: 0.036 },
 ] as const;
 
 /**
@@ -171,12 +171,11 @@ export function ClockHands({ size, angles, theme, idPrefix }: ClockHandsProps) {
         angle={angles.second}
         offset={SHADOW.second}
         color={theme.lumeGlow}
-        strength={0.5}
+        strength={0.3}
       />
       <G transform={`translate(${CENTER + SHADOW.hub.dx} ${CENTER + SHADOW.hub.dy})`}>
-        <Circle r={42} fill={theme.lumeGlow} opacity={0.08} />
-        <Circle r={34} fill={theme.lumeGlow} opacity={0.1} />
-        <Circle r={29} fill={theme.shadow} opacity={0.08} />
+        <Circle r={40} fill={theme.lumeGlow} opacity={0.05} />
+        <Circle r={32} fill={theme.lumeGlow} opacity={0.06} />
       </G>
 
       <SculptedHand

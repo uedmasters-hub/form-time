@@ -113,7 +113,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       </G>
 
       {/* Contact shadow: indices are applied, so they sit slightly above the face */}
-      <G filter={url('soft')} opacity={0.22} transform="translate(2 4)">
+      <G filter={url('soft')} opacity={0.14} transform="translate(2 4)">
         {HOURS.map((h) => {
           const outer = polar(DIAL.indexOuter, h * 30);
           const inner = polar(DIAL.indexInner, h * 30);

@@ -1,6 +1,9 @@
 /**
- * Supported regions. Each region has one or more areas; an area fixes the
- * IANA time zone (and, for Australia, the state whose holidays apply).
+ * Supported regions. Each region has one or more areas. An area fixes the
+ * IANA time zone, and for Australia and India also the state whose holidays
+ * apply. India has a single time zone, so its areas — the states and union
+ * territories, coded as in ISO 3166-2:IN (IN-HR, IN-TN…) — are calendar
+ * regions only.
  */
 export type RegionCode = 'NP' | 'IN' | 'US' | 'AU';
 
@@ -11,6 +14,8 @@ export type Area = {
   /** Longer label for the picker, e.g. "Eastern · New York". */
   label: string;
   timeZone: string;
+  /** For India: whether the area is a state or a union territory. */
+  group?: 'state' | 'union-territory';
 };
 
 export type Region = {
@@ -20,6 +25,55 @@ export type Region = {
   /** Weekly days off, 0 = Sunday … 6 = Saturday; shown in the weekend colour. */
   weekend: readonly number[];
 };
+
+const IST = 'Asia/Kolkata';
+
+/** ISO 3166-2:IN codes (2023 revision: OD, CG, TS, UK). */
+const INDIA_STATES: readonly [string, string][] = [
+  ['AP', 'Andhra Pradesh'],
+  ['AR', 'Arunachal Pradesh'],
+  ['AS', 'Assam'],
+  ['BR', 'Bihar'],
+  ['CG', 'Chhattisgarh'],
+  ['GA', 'Goa'],
+  ['GJ', 'Gujarat'],
+  ['HR', 'Haryana'],
+  ['HP', 'Himachal Pradesh'],
+  ['JH', 'Jharkhand'],
+  ['KA', 'Karnataka'],
+  ['KL', 'Kerala'],
+  ['MP', 'Madhya Pradesh'],
+  ['MH', 'Maharashtra'],
+  ['MN', 'Manipur'],
+  ['ML', 'Meghalaya'],
+  ['MZ', 'Mizoram'],
+  ['NL', 'Nagaland'],
+  ['OD', 'Odisha'],
+  ['PB', 'Punjab'],
+  ['RJ', 'Rajasthan'],
+  ['SK', 'Sikkim'],
+  ['TN', 'Tamil Nadu'],
+  ['TS', 'Telangana'],
+  ['TR', 'Tripura'],
+  ['UP', 'Uttar Pradesh'],
+  ['UK', 'Uttarakhand'],
+  ['WB', 'West Bengal'],
+];
+
+const INDIA_UNION_TERRITORIES: readonly [string, string][] = [
+  ['AN', 'Andaman and Nicobar Islands'],
+  ['CH', 'Chandigarh'],
+  ['DH', 'Dadra and Nagar Haveli and Daman and Diu'],
+  ['DL', 'Delhi'],
+  ['JK', 'Jammu and Kashmir'],
+  ['LA', 'Ladakh'],
+  ['LD', 'Lakshadweep'],
+  ['PY', 'Puducherry'],
+];
+
+function indiaArea(code: string, label: string, group: Area['group']): Area {
+  return { id: `IN-${code}`, short: code, label, timeZone: IST, group };
+}
 
 export const REGIONS: readonly Region[] = [
   {
@@ -32,7 +86,12 @@ export const REGIONS: readonly Region[] = [
   {
     code: 'IN',
     name: 'India',
-    areas: [{ id: 'IN', short: 'IN', label: 'New Delhi', timeZone: 'Asia/Kolkata' }],
+    areas: [
+      // Central government offices (New Delhi): the DoPT list.
+      { id: 'IN', short: 'IN', label: 'All India · central government', timeZone: IST },
+      ...INDIA_STATES.map(([code, label]) => indiaArea(code, label, 'state')),
+      ...INDIA_UNION_TERRITORIES.map(([code, label]) => indiaArea(code, label, 'union-territory')),
+    ],
     weekend: [0, 6],
   },
   {
@@ -81,6 +140,21 @@ export function regionOf(code: RegionCode): Region {
 export function areaOf(code: RegionCode, areaId: string | undefined): Area {
   const region = regionOf(code);
   return region.areas.find((a) => a.id === areaId) ?? region.areas[0];
+}
+
+/**
+ * The code shown in the corner: "IN", "IN-HR" for an Indian state, or
+ * "US · ET" where an area is a time zone.
+ */
+export function regionLabel(region: Region, area: Area): string {
+  if (area.group) return area.id;
+  if (area.id === region.code || region.areas.length === 1) return region.code;
+  return `${region.code} · ${area.short}`;
+}
+
+/** Distinct time zones in a region (India: one, however many states). */
+export function timeZonesOf(region: Region): string[] {
+  return [...new Set(region.areas.map((a) => a.timeZone))];
 }
 
 /** Zones the device might report for each area (aliases included). */

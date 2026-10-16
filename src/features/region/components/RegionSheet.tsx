@@ -1,15 +1,16 @@
-import { ExternalLink } from 'lucide-react-native';
+import { ExternalLink, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Sheet, SheetSection, SheetSwitch } from '@/components/Sheet';
-import { holidaySources, KIND_PLURALS, REGION_KINDS } from '@/features/holidays/holidays';
+import { holidaySources, kindPlurals, REGION_KINDS } from '@/features/holidays/holidays';
+import { indiaListStatus } from '@/features/holidays/india';
 import type { HolidayKind } from '@/features/holidays/types';
 import { OptionGroup } from '@/features/settings/components/OptionGroup';
 import { NEPAL_CALENDARS, type Settings } from '@/features/settings/settings';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
-import { REGIONS, areaOf, type RegionCode } from '../regions';
+import { REGIONS, areaOf, timeZonesOf, type Area, type RegionCode } from '../regions';
 import { formatOffset } from '../zoned-time';
 
 type RegionSheetProps = {
@@ -22,6 +23,17 @@ const KIND_SETTING: Record<HolidayKind, keyof Settings> = {
   restricted: 'showRestrictedHolidays',
   festival: 'showFestivals',
 };
+
+/** Switch details for India once a state is chosen. */
+function indiaStateDetail(area: Area): Partial<Record<HolidayKind, string>> {
+  const status = indiaListStatus(area.id);
+  return {
+    public:
+      status === 'missing' ? 'National holidays' : `National holidays and ${area.label}'s own list`,
+    restricted: 'Optional, partial, local or bank-only — each says which',
+    festival: 'Navaratri and the central calendar’s festival dates',
+  };
+}
 
 const KIND_DETAIL: Record<RegionCode, Partial<Record<HolidayKind, string>>> = {
   IN: {
@@ -78,6 +90,11 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
   const { settings, update, uiTheme: ui } = useSettings();
   const now = useMinute(visible);
   const region = REGIONS.find((r) => r.code === settings.region) ?? REGIONS[0];
+  const area = areaOf(region.code, settings.area);
+  const indianState = region.code === 'IN' && area.group !== undefined;
+  const kindDetail = indianState ? indiaStateDetail(area) : KIND_DETAIL[region.code];
+  const plurals = kindPlurals(region.code, area.id);
+  const [query, setQuery] = useState('');
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Region" anchor="top-right">
@@ -93,7 +110,11 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
                 accessibilityRole="radio"
                 accessibilityLabel={`${r.name}, ${time}`}
                 aria-checked={selected}
-                onPress={() => update({ region: r.code, area: areaOf(r.code, undefined).id })}
+                onPress={() =>
+                  // Choosing the current country again keeps its state or zone.
+                  r.code !== settings.region &&
+                  update({ region: r.code, area: areaOf(r.code, undefined).id })
+                }
                 style={({ hovered, pressed }) => [
                   styles.row,
                   {
@@ -123,13 +144,13 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
                 </Text>
                 <View style={styles.timeCol}>
                   <Text style={[styles.time, { color: ui.ink }]}>{time}</Text>
-                  {r.areas.length === 1 ? (
+                  {timeZonesOf(r).length === 1 ? (
                     <Text style={[styles.offset, { color: ui.muted }]}>
                       {formatOffset(zone, now)}
                     </Text>
                   ) : (
                     <Text style={[styles.offset, { color: ui.muted }]}>
-                      {r.areas.length} time zones
+                      {timeZonesOf(r).length} time zones
                     </Text>
                   )}
                 </View>
@@ -151,7 +172,17 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
         </SheetSection>
       ) : null}
 
-      {region.areas.length > 1 ? (
+      {region.code === 'IN' ? (
+        <SheetSection label="State or union territory" aside={area.id}>
+          <IndiaAreaPicker
+            areas={region.areas}
+            selected={area.id}
+            query={query}
+            onQuery={setQuery}
+            onSelect={(id) => update({ area: id })}
+          />
+        </SheetSection>
+      ) : region.areas.length > 1 ? (
         <SheetSection
           label={region.code === 'AU' ? 'State or territory' : 'Time zone'}
           aside={formatOffset(areaOf(region.code, settings.area).timeZone, now)}
@@ -201,8 +232,8 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
         {REGION_KINDS[region.code].map((kind, i) => (
           <SheetSwitch
             key={kind}
-            label={KIND_PLURALS[region.code][kind]}
-            detail={KIND_DETAIL[region.code][kind]}
+            label={plurals[kind]}
+            detail={kindDetail[kind]}
             value={settings[KIND_SETTING[kind]] as boolean}
             onChange={(value) => update({ [KIND_SETTING[kind]]: value } as Partial<Settings>)}
             first={i === 0}
@@ -211,7 +242,19 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
       </SheetSection>
 
       <SheetSection label="Sources">
-        {holidaySources(region.code).map((source) => (
+        {indianState && indiaListStatus(area.id) === 'missing' ? (
+          <Text style={[styles.status, { color: ui.ink }]}>
+            {area.label}&apos;s own 2026 list isn&apos;t included yet — no copy of its notification
+            could be checked. The calendar shows the national holidays and the central
+            calendar&apos;s festivals.
+          </Text>
+        ) : null}
+        {indianState && indiaListStatus(area.id) === 'follows-central' ? (
+          <Text style={[styles.status, { color: ui.ink }]}>
+            {area.label} follows the central government&apos;s list of holidays.
+          </Text>
+        ) : null}
+        {holidaySources(region.code, area.id).map((source) => (
           <Pressable
             key={source.url}
             accessibilityRole="link"
@@ -227,10 +270,115 @@ export function RegionSheet({ visible, onClose }: RegionSheetProps) {
           </Pressable>
         ))}
         <Text style={[styles.disclaimer, { color: ui.muted }]}>
-          Lunar and moon-sighted dates can shift; local and state calendars may differ.
+          Lunar and moon-sighted dates can shift; local and district holidays may differ.
+          {region.code === 'IN' && indianState
+            ? ' State lists cover 2026; later years show national holidays and the central calendar until states publish theirs.'
+            : ''}
         </Text>
       </SheetSection>
     </Sheet>
+  );
+}
+
+type IndiaAreaPickerProps = {
+  areas: readonly Area[];
+  selected: string;
+  query: string;
+  onQuery: (query: string) => void;
+  onSelect: (id: string) => void;
+};
+
+/**
+ * All India, then the states and the union territories, each a chip with
+ * its ISO code. A filter narrows the 37 choices by name or code.
+ */
+function IndiaAreaPicker({ areas, selected, query, onQuery, onSelect }: IndiaAreaPickerProps) {
+  const { uiTheme: ui } = useSettings();
+  const q = query.trim().toLowerCase();
+  const matches = (a: Area) =>
+    !q ||
+    a.label.toLowerCase().includes(q) ||
+    a.id.toLowerCase().includes(q) ||
+    a.short.toLowerCase() === q;
+  const groups: { title: string | null; items: Area[] }[] = [
+    { title: null, items: areas.filter((a) => !a.group && matches(a)) },
+    { title: 'STATES', items: areas.filter((a) => a.group === 'state' && matches(a)) },
+    {
+      title: 'UNION TERRITORIES',
+      items: areas.filter((a) => a.group === 'union-territory' && matches(a)),
+    },
+  ];
+  const none = groups.every((g) => g.items.length === 0);
+
+  return (
+    <View>
+      <View style={[styles.search, { borderColor: ui.hairline }]}>
+        <Search size={16} color={ui.muted} strokeWidth={1.5} />
+        <TextInput
+          value={query}
+          onChangeText={onQuery}
+          placeholder="Find a state or code (e.g. HR)"
+          placeholderTextColor={ui.muted}
+          accessibilityLabel="Find a state or union territory"
+          autoCorrect={false}
+          autoCapitalize="none"
+          style={[styles.searchInput, { color: ui.ink }]}
+        />
+      </View>
+      {none ? (
+        <Text style={[styles.empty, { color: ui.muted }]}>
+          No state or union territory matches.
+        </Text>
+      ) : null}
+      {groups.map((group) =>
+        group.items.length ? (
+          <View key={group.title ?? 'all'}>
+            {group.title ? (
+              <Text style={[styles.groupLabel, { color: ui.muted }]}>{group.title}</Text>
+            ) : null}
+            <View
+              role="radiogroup"
+              accessibilityLabel={group.title ? group.title.toLowerCase() : 'All India'}
+              style={styles.chips}
+            >
+              {group.items.map((a) => {
+                const isSelected = a.id === selected;
+                return (
+                  <Pressable
+                    key={a.id}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${a.label}, ${a.id}`}
+                    aria-checked={isSelected}
+                    onPress={() => onSelect(a.id)}
+                    style={({ hovered, pressed }) => [
+                      styles.areaChip,
+                      {
+                        borderColor: isSelected ? ui.ink : ui.hairline,
+                        borderWidth: isSelected ? 1.5 : 1,
+                        backgroundColor: hovered || pressed ? ui.hover : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipLabel,
+                        {
+                          color: isSelected ? ui.ink : ui.muted,
+                          fontWeight: isSelected ? '600' : '400',
+                        },
+                      ]}
+                    >
+                      {a.label}
+                    </Text>
+                    <Text style={[styles.areaCode, { color: ui.muted }]}>{a.short}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null,
+      )}
+    </View>
   );
 }
 
@@ -307,6 +455,50 @@ const styles = StyleSheet.create({
   sourceCovers: {
     fontSize: 11,
     marginTop: 2,
+  },
+  status: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    height: 38,
+  },
+  groupLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  areaChip: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  areaCode: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  empty: {
+    fontSize: 12,
+    paddingVertical: 8,
   },
   disclaimer: {
     fontSize: 11,

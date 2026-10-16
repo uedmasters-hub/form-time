@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
-import { holidaysByDay, KIND_LABELS } from '@/features/holidays/holidays';
+import { holidaysByDay, kindLabels as kindLabelsFor } from '@/features/holidays/holidays';
 import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
 import { regionOf } from '@/features/region/regions';
@@ -137,7 +137,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
       [],
     [gridHolidays, selected, settings.region, settings.area, filters],
   );
-  const kindLabels = KIND_LABELS[settings.region];
+  const kindLabels = kindLabelsFor(settings.region, settings.area);
 
   // Wide: the grid is centred on the page and the day panel sits at the right
   // edge, so each side of the grid must leave room for panel + gap. Everything

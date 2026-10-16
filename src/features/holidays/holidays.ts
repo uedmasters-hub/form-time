@@ -7,9 +7,9 @@ import {
 import type { RegionCode } from '@/features/region/regions';
 
 import { australianHolidays, AUSTRALIA_SOURCES, type AuState } from './data/australia';
-import { INDIA_HOLIDAYS, INDIA_SOURCES } from './data/india';
 import { NEPAL_HOLIDAYS, NEPAL_SOURCES } from './data/nepal';
 import { US_SOURCES, usFederalHolidays } from './data/united-states';
+import { CENTRAL_AREA, indiaHolidays, indiaSources } from './india';
 import type { DayHoliday, Holiday, HolidayKind, HolidaySource } from './types';
 
 export type HolidayFilters = Record<HolidayKind, boolean>;
@@ -30,6 +30,29 @@ export const KIND_PLURALS: Record<RegionCode, Record<HolidayKind, string>> = {
   AU: { public: 'Public holidays', restricted: 'Regional holidays', festival: 'Festivals' },
 };
 
+/** Labels for an Indian state, where "public" includes the national holidays. */
+const INDIA_STATE_LABELS: Record<HolidayKind, string> = {
+  public: 'Public holiday',
+  restricted: 'Holiday for some',
+  festival: 'Festival or observance',
+};
+const INDIA_STATE_PLURALS: Record<HolidayKind, string> = {
+  public: 'Public holidays',
+  restricted: 'Optional and partial holidays',
+  festival: 'Festivals and observances',
+};
+
+const isIndianState = (region: RegionCode, area: string) =>
+  region === 'IN' && area !== CENTRAL_AREA;
+
+export function kindLabels(region: RegionCode, area: string): Record<HolidayKind, string> {
+  return isIndianState(region, area) ? INDIA_STATE_LABELS : KIND_LABELS[region];
+}
+
+export function kindPlurals(region: RegionCode, area: string): Record<HolidayKind, string> {
+  return isIndianState(region, area) ? INDIA_STATE_PLURALS : KIND_PLURALS[region];
+}
+
 /** Kinds that actually occur in a region's data (so empty toggles are hidden). */
 export const REGION_KINDS: Record<RegionCode, HolidayKind[]> = {
   IN: ['public', 'restricted', 'festival'],
@@ -38,10 +61,10 @@ export const REGION_KINDS: Record<RegionCode, HolidayKind[]> = {
   AU: ['public'],
 };
 
-export function holidaySources(region: RegionCode): HolidaySource[] {
+export function holidaySources(region: RegionCode, area: string): HolidaySource[] {
   switch (region) {
     case 'IN':
-      return INDIA_SOURCES;
+      return indiaSources(area);
     case 'NP':
       return NEPAL_SOURCES;
     case 'US':
@@ -55,7 +78,7 @@ export function holidaySources(region: RegionCode): HolidaySource[] {
 export function holidaysFor(region: RegionCode, area: string, years: number[]): Holiday[] {
   switch (region) {
     case 'IN':
-      return INDIA_HOLIDAYS;
+      return cached(`IN:${area}`, () => indiaHolidays(area));
     case 'NP':
       return NEPAL_HOLIDAYS;
     case 'US':
@@ -63,6 +86,16 @@ export function holidaysFor(region: RegionCode, area: string, years: number[]): 
     case 'AU':
       return australianHolidays(area as AuState);
   }
+}
+
+const composed = new Map<string, Holiday[]>();
+function cached(key: string, build: () => Holiday[]): Holiday[] {
+  let list = composed.get(key);
+  if (!list) {
+    list = build();
+    composed.set(key, list);
+  }
+  return list;
 }
 
 function parseISO(iso: string): CalendarDate {

@@ -23,6 +23,11 @@ export const INDIA_SOURCES: HolidaySource[] = [
     covers: 'Gazetted & restricted holidays 2027',
   },
   {
+    label: 'DoP&T O.M. No. 12/3/2023-JCA, 22.05.2026',
+    url: 'https://www.staffnews.in/2026/05/change-in-the-date-of-holiday-on-account-of-id-u-zuha-bakrid.html',
+    covers: 'Id-ul-Zuha 2026 moved to 28 May',
+  },
+  {
     label: 'Drik Panchang (New Delhi), via Business Today',
     url: 'https://www.businesstoday.in/india/story/navratri-2026-full-calendar-durga-ashtami-maha-navami-dussehra-dates-check-here-560833-2026-10-11',
     covers: 'Sharad Navaratri 2026',
@@ -38,7 +43,12 @@ export const INDIA_HOLIDAYS: Holiday[] = [
   { start: '2026-03-31', name: 'Mahavir Jayanti', kind: 'public' },
   { start: '2026-04-03', name: 'Good Friday', kind: 'public' },
   { start: '2026-05-01', name: 'Buddha Purnima', kind: 'public' },
-  { start: '2026-05-27', name: 'Id-ul-Zuha (Bakrid)', kind: 'public', note: LUNAR },
+  {
+    start: '2026-05-28',
+    name: 'Id-ul-Zuha (Bakrid)',
+    kind: 'public',
+    note: 'Moved from 27 May after the moon sighting (DoP&T, 22 May 2026)',
+  },
   { start: '2026-06-26', name: 'Muharram', kind: 'public', note: LUNAR },
   { start: '2026-08-15', name: 'Independence Day', kind: 'public' },
   { start: '2026-08-26', name: 'Milad-un-Nabi (Id-e-Milad)', kind: 'public', note: LUNAR },

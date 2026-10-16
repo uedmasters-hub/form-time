@@ -12,7 +12,7 @@ import {
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCanHover } from '@/hooks/use-can-hover';
 
-import { regionOf } from '../regions';
+import { regionLabel, regionOf } from '../regions';
 
 type RegionButtonProps = {
   onPress: () => void;
@@ -20,8 +20,8 @@ type RegionButtonProps = {
 };
 
 /**
- * The region's country code in the top-right corner ("IN", or "US · ET" where
- * a country has several time zones). Quiet at rest — but readable, since it
+ * The region's code in the top-right corner: "IN", "IN-HR" for an Indian
+ * state, or "US · ET" where a country has several time zones. Quiet at rest — but readable, since it
  * tells you whose time is shown — and full strength on hover, press or focus.
  */
 export function RegionButton({ onPress, style }: RegionButtonProps) {
@@ -30,8 +30,8 @@ export function RegionButton({ onPress, style }: RegionButtonProps) {
   const [focusVisible, setFocusVisible] = useState(false);
 
   const region = regionOf(settings.region);
-  const multiZone = region.areas.length > 1;
-  const code = multiZone ? `${region.code} · ${area.short}` : region.code;
+  const code = regionLabel(region, area);
+  const areaName = region.areas.length > 1 && area.id !== region.code ? `, ${area.label}` : '';
 
   const onFocus = (event: NativeSyntheticEvent<unknown>) => {
     const target = event.target as unknown as { matches?: (selector: string) => boolean };
@@ -41,8 +41,8 @@ export function RegionButton({ onPress, style }: RegionButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Region: ${region.name}${multiZone ? `, ${area.label}` : ''}`}
-      accessibilityHint="Choose the country and time zone for the clock and holidays"
+      accessibilityLabel={`Region: ${region.name}${areaName}`}
+      accessibilityHint="Choose the country, time zone or state for the clock and holidays"
       onPress={onPress}
       onFocus={onFocus}
       onBlur={() => setFocusVisible(false)}

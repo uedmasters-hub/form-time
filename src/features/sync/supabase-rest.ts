@@ -168,9 +168,15 @@ export function createSupabaseRest(
     if (
       code === 'PGRST205' ||
       code === '42P01' ||
+      // A column the app sends isn't there yet: a newer migration hasn't run.
+      code === 'PGRST204' ||
+      code === '42703' ||
       (res.status === 404 && /relation|table/i.test(message))
     ) {
-      throw new SyncError('table-missing', 'The calendar_items table isn’t set up yet');
+      throw new SyncError(
+        'table-missing',
+        'The calendar_items table isn’t set up, or is missing a newer migration',
+      );
     }
     if (res.status === 401 || res.status === 403) throw new SyncError('unauthorized', message);
     throw new SyncError('server', message);

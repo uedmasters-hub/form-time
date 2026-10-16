@@ -75,7 +75,7 @@ function makeClient(): SupabaseRest | null {
 const PROBLEM_TEXT: Record<SyncProblem, string> = {
   offline: 'Offline — saved on this device; will sync when you’re back online',
   'auth-disabled': 'Saved on this device — turn on anonymous sign-ins in Supabase to sync',
-  'table-missing': 'Saved on this device — run the calendar_items migration in Supabase to sync',
+  'table-missing': 'Saved on this device — run the calendar_items migrations in Supabase to sync',
   unauthorized: 'Saved on this device — the sync session was refused',
   server: 'Saved on this device — the server reported a problem',
 };
@@ -155,9 +155,11 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = readJSON<Stored>(ITEMS_KEY);
     if (stored && Array.isArray(stored.items)) {
-      allRef.current = stored.items;
+      // Items saved before a field existed get its empty value.
+      const items = stored.items.map((item) => ({ ...item, place: item.place ?? '' }));
+      allRef.current = items;
       dirtyRef.current = new Set(stored.dirty ?? []);
-      setAll(stored.items);
+      setAll(items);
     }
     setLoaded(true);
     clientRef.current = makeClient();

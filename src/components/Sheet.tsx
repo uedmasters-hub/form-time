@@ -33,6 +33,12 @@ type SheetProps = {
    */
   anchor: 'bottom-left' | 'top-right' | 'center';
   children: ReactNode;
+  /** Panel colour, if not the theme's raised surface. */
+  surface?: string;
+  /** Drawn behind the content (e.g. a paper texture); ignores touches. */
+  texture?: ReactNode;
+  /** Pinned below the scrolling content, so its actions stay in reach. */
+  footer?: ReactNode;
 };
 
 const WIDE = 720;
@@ -47,7 +53,16 @@ const EASE = Easing.bezier(0.22, 1, 0.36, 1);
  * lifts in (instant with reduce motion); closes with ✕, Escape or a tap
  * outside, and traps focus while open (web).
  */
-export function Sheet({ visible, onClose, title, anchor, children }: SheetProps) {
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  anchor,
+  children,
+  surface,
+  texture,
+  footer,
+}: SheetProps) {
   const { mode, uiTheme: ui } = useSettings();
   const reducedMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -137,11 +152,16 @@ export function Sheet({ visible, onClose, title, anchor, children }: SheetProps)
       <Animated.View
         style={[
           styles.panel,
-          { backgroundColor: ui.surface, borderColor: ui.hairline },
+          { backgroundColor: surface ?? ui.surface, borderColor: ui.hairline },
           placement,
           panelStyle,
         ]}
       >
+        {texture ? (
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {texture}
+          </View>
+        ) : null}
         <View style={styles.header}>
           <Text style={[styles.title, { color: ui.ink }]} accessibilityRole="header">
             {title}
@@ -161,6 +181,9 @@ export function Sheet({ visible, onClose, title, anchor, children }: SheetProps)
         >
           {children}
         </ScrollView>
+        {footer ? (
+          <View style={[styles.footer, { borderColor: ui.hairline }]}>{footer}</View>
+        ) : null}
       </Animated.View>
     </Modal>
   );
@@ -257,6 +280,11 @@ const styles = StyleSheet.create({
   body: {
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 18,
   },
   section: {
     marginTop: 18,

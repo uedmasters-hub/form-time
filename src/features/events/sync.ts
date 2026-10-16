@@ -15,6 +15,7 @@ export type ItemRow = {
   kind: ItemKind;
   title: string;
   notes: string;
+  place: string;
   local_date: string;
   local_time: string | null;
   time_zone: string;
@@ -34,6 +35,7 @@ export function toRow(item: CalendarItem): ItemRow {
     kind: item.kind,
     title: item.title,
     notes: item.notes,
+    place: item.place,
     local_date: item.date,
     local_time: item.time,
     time_zone: item.timeZone,
@@ -52,6 +54,7 @@ export function fromRow(row: ItemRow): CalendarItem {
     kind: row.kind,
     title: row.title ?? '',
     notes: row.notes ?? '',
+    place: row.place ?? '',
     date: row.local_date,
     // Postgres returns "15:27:00"; keep HH:MM:SS.
     time: row.local_time ? row.local_time.slice(0, 8) : null,

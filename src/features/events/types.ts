@@ -14,6 +14,8 @@ export type CalendarItem = {
   kind: ItemKind;
   title: string;
   notes: string;
+  /** Where it happens: a place, or a meeting link. "" when not set. */
+  place: string;
   /** Wall-clock date, "2026-10-16". */
   date: string;
   /** Wall-clock time "15:27:00", or null for an all-day or untimed item. */

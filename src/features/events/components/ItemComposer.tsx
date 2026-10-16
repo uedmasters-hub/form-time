@@ -1,31 +1,25 @@
 import {
   AlarmClock,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   CornerUpRight,
+  Link2,
+  MapPin,
   StickyNote,
   Users,
   type LucideIcon,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { QuietIconButton } from '@/components/QuietIconButton';
-import { Sheet, SheetSection, SheetSwitch } from '@/components/Sheet';
-import {
-  addDays,
-  isSameDay,
-  toISODate,
-  type CalendarDate,
-} from '@/features/calendar/calendar-date';
+import { Sheet } from '@/components/Sheet';
+import { toISODate, type CalendarDate } from '@/features/calendar/calendar-date';
 import { calendarSystemFor } from '@/features/calendar/calendar-system';
 import { useToday } from '@/features/calendar/use-today';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
+import { guessKind, layoutFlow, type FlowState, type StepId } from '../composer-flow';
 import { useEvents } from '../EventsProvider';
 import {
-  formatWallTime,
   newId,
   parseISODate,
   parseTime,
@@ -35,7 +29,19 @@ import {
   type WallTime,
 } from '../item-time';
 import { requestNotificationPermission } from '../notifications';
-import { ITEM_KINDS, REMINDERS, type CalendarItem, type ItemKind } from '../types';
+import { ITEM_KINDS, KIND_LABEL, REMINDERS, type CalendarItem, type ItemKind } from '../types';
+import { DotGrid, paperFor } from './composer/paper';
+import {
+  ChoiceChips,
+  FoldedStep,
+  Progress,
+  Reveal,
+  SaveButton,
+  StepHeading,
+  TextButton,
+  useFocusOnReveal,
+} from './composer/parts';
+import { WhenEditor, WhenStamp, type WhenValue } from './composer/when';
 
 /** What the composer opens with: a new item at a date/time, or an existing item. */
 export type ComposerRequest =
@@ -59,16 +65,35 @@ const DEFAULT_REMINDER: Record<ItemKind, number | null> = {
   alarm: 0,
 };
 
-type Draft = {
+const PLACE_PROMPT: Partial<Record<ItemKind, string>> = {
+  meeting: 'Where, or paste a meeting link',
+  event: 'Where',
+};
+
+const STEP_LABEL: Record<StepId, string> = {
+  type: 'Kind',
+  place: 'Where',
+  remind: 'Remind',
+  notes: 'Notes',
+};
+
+const ADD_LABEL: Record<StepId, string> = {
+  type: 'Kind',
+  place: '+ Place',
+  remind: '+ Reminder',
+  notes: '+ Notes',
+};
+
+/** A chosen chip settles for a beat before its step folds away. */
+const SETTLE_MS = 170;
+
+type Draft = WhenValue & {
   kind: ItemKind;
+  /** The user picked the kind (so the title no longer suggests one). */
+  kindChosen: boolean;
   title: string;
+  place: string;
   notes: string;
-  date: CalendarDate;
-  timed: boolean;
-  hours: number;
-  minutes: number;
-  seconds: number;
-  showSeconds: boolean;
   reminder: number | null;
   reminderTouched: boolean;
 };
@@ -79,7 +104,9 @@ function draftFrom(request: ComposerRequest): Draft {
     const time = item.time ? parseTime(item.time) : { hours: 9, minutes: 0, seconds: 0 };
     return {
       kind: item.kind,
+      kindChosen: true,
       title: item.title,
+      place: item.place,
       notes: item.notes,
       date: parseISODate(item.date),
       timed: item.time !== null,
@@ -93,7 +120,9 @@ function draftFrom(request: ComposerRequest): Draft {
   const time = request.time ?? { hours: 9, minutes: 0, seconds: 0 };
   return {
     kind,
+    kindChosen: Boolean(request.kind),
     title: '',
+    place: '',
     notes: '',
     date: request.date,
     timed: request.time !== null,
@@ -104,7 +133,14 @@ function draftFrom(request: ComposerRequest): Draft {
   };
 }
 
+const ALL_STEPS: StepId[] = ['type', 'place', 'remind', 'notes'];
+const flowFrom = (request: ComposerRequest): FlowState =>
+  request.mode === 'edit'
+    ? { started: true, done: new Set(ALL_STEPS), added: new Set(), open: null }
+    : { started: false, done: new Set(), added: new Set(), open: null };
+
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
+const isLink = (place: string) => /^https?:\/\//i.test(place.trim());
 
 type ItemComposerProps = {
   request: ComposerRequest | null;
@@ -112,9 +148,11 @@ type ItemComposerProps = {
 };
 
 /**
- * Add or edit one item. A single column, top to bottom: what it is, a
- * title, when, a reminder, notes. Closing with unsaved changes asks first;
- * deleting asks first.
+ * Add or edit one item, a page at a time. The date and time come first (set
+ * like a stamp), then "What's this about?"; each answer reveals the next
+ * question the kind needs — what kind, where, when to remind — and folds
+ * into a one-line summary that can be opened again. Extras (place, notes)
+ * are there when wanted. Enter moves on; ⌘/Ctrl+Enter saves.
  */
 export function ItemComposer({ request, onClose }: ItemComposerProps) {
   const { uiTheme: ui, timeZone, settings } = useSettings();
@@ -122,8 +160,10 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
   const today = useToday(timeZone);
   const system = calendarSystemFor(settings.region, settings.nepalCalendar, today);
   const hour12 = uses12Hour();
+  const paper = paperFor(ui);
 
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [flow, setFlow] = useState<FlowState | null>(null);
   const initial = useRef<Draft | null>(null);
   const [confirm, setConfirm] = useState<'discard' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +175,7 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
     const next = draftFrom(request);
     initial.current = next;
     setDraft(next);
+    setFlow(flowFrom(request));
     setConfirm(null);
     setError(null);
     setNotice(null);
@@ -152,13 +193,26 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
     setConfirm(null);
   };
 
-  const close = () => {
-    if (changed && confirm !== 'discard') {
-      setConfirm('discard');
-      return;
-    }
-    onClose();
-  };
+  const setOpen = (open: FlowState['open']) => setFlow((f) => (f ? { ...f, open } : f));
+
+  /** Marks a step finished and folds it; an empty extra just goes away. */
+  const complete = useCallback(
+    (id: StepId) => {
+      setFlow((f) => {
+        if (!f) return f;
+        const done = new Set(f.done).add(id);
+        const added = new Set(f.added);
+        const empty =
+          (id === 'notes' && !draft?.notes.trim()) || (id === 'place' && !draft?.place.trim());
+        if (empty && added.has(id)) {
+          added.delete(id);
+          done.delete(id);
+        }
+        return { ...f, done, added, open: f.open === id || f.open === null ? null : f.open };
+      });
+    },
+    [draft?.notes, draft?.place],
+  );
 
   const when = useMemo(() => {
     if (!draft) return null;
@@ -170,18 +224,37 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
     );
   }, [draft, timeZone]);
 
-  // The last draft stays rendered while the sheet animates closed.
-  if (!draft) return null;
-  const open = request !== null;
+  const layout =
+    draft && flow
+      ? layoutFlow(
+          draft.kind,
+          flow,
+          { place: Boolean(draft.place.trim()), notes: Boolean(draft.notes.trim()) },
+          // An alarm's label is optional.
+          Boolean(draft.title.trim()) || draft.kind === 'alarm',
+        )
+      : null;
 
-  const kindInfo = ITEM_KINDS.find((k) => k.id === draft.kind) ?? ITEM_KINDS[0];
-  const past = when?.startsAt ? Date.parse(when.startsAt) < Date.now() : false;
-  const remindPast = when?.remindAt ? Date.parse(when.remindAt) < Date.now() : false;
+  const placeRef = useFocusOnReveal<TextInput>(
+    layout?.steps.some((s) => s.id === 'place' && s.mode === 'open') ?? false,
+  );
+  const notesRef = useFocusOnReveal<TextInput>(
+    layout?.steps.some((s) => s.id === 'notes' && s.mode === 'open') ?? false,
+  );
+
+  const close = () => {
+    if (changed && confirm !== 'discard') {
+      setConfirm('discard');
+      return;
+    }
+    onClose();
+  };
 
   const submit = async () => {
+    if (!draft) return;
     const title = draft.title.trim() || (draft.kind === 'alarm' ? 'Alarm' : '');
     if (!title) {
-      setError('Add a title');
+      setError('Give it a few words first');
       titleRef.current?.focus();
       return;
     }
@@ -194,6 +267,7 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
       kind: draft.kind,
       title,
       notes: draft.notes.trim(),
+      place: draft.place.trim(),
       date: toISODate(draft.date),
       time,
       // An edited item keeps its zone unless its date or time changed.
@@ -222,447 +296,441 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
     onClose();
   };
 
-  const dateLabel = system.longDate(draft.date);
-  const secondary = system.secondaryDate?.(draft.date);
-  const isToday = isSameDay(draft.date, today);
+  // Enter in the title moves the page on: start, accept the step waiting,
+  // and save once nothing is waiting.
+  const advance = () => {
+    if (!flow) return;
+    if (!flow.started) setFlow({ ...flow, started: true });
+    else if (layout?.pending) complete(layout.pending);
+    else void submit();
+  };
+
+  // ⌘/Ctrl+Enter saves from anywhere on the page (web).
+  const submitRef = useRef(submit);
+  useEffect(() => {
+    submitRef.current = submit;
+  });
+  const open = request !== null;
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        void submitRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // The last draft stays rendered while the sheet animates closed.
+  if (!draft || !flow || !layout) return null;
+
+  const kindLabel = KIND_LABEL[draft.kind];
+  const remindPast = when?.remindAt ? Date.parse(when.remindAt) < Date.now() : false;
+  const past = when?.startsAt ? Date.parse(when.startsAt) < Date.now() : false;
+  const ready = Boolean(draft.title.trim()) || draft.kind === 'alarm';
+  const reminderText = remindAt(when?.remindAt ?? null, timeZone, hour12);
+
+  const chooseKind = (kind: ItemKind) => {
+    update({
+      kind,
+      kindChosen: true,
+      ...(draft.reminderTouched ? null : { reminder: DEFAULT_REMINDER[kind] }),
+      ...(kind === 'alarm' ? { timed: true } : null),
+    });
+    setTimeout(() => complete('type'), SETTLE_MS);
+  };
+
+  const chooseReminder = (reminder: number | null) => {
+    update({ reminder, reminderTouched: true });
+    setTimeout(() => complete('remind'), SETTLE_MS);
+  };
+
+  const onTitle = (title: string) => {
+    const guess = !draft.kindChosen && !editing ? guessKind(title) : null;
+    const kind = draft.kindChosen || editing ? draft.kind : (guess ?? 'event');
+    update({
+      title,
+      ...(kind !== draft.kind
+        ? {
+            kind,
+            ...(draft.reminderTouched ? null : { reminder: DEFAULT_REMINDER[kind] }),
+            ...(kind === 'alarm' ? { timed: true } : null),
+          }
+        : null),
+    });
+    if (title.trim() && !flow.started) setFlow({ ...flow, started: true });
+  };
+
+  const stepFooter = (id: StepId) => {
+    const waiting = layout.pending === id;
+    return (
+      <View style={styles.stepFoot}>
+        <TextButton
+          label={waiting ? 'Next' : 'Done'}
+          a11yLabel={`${waiting ? 'Next' : 'Done'}: ${STEP_LABEL[id]}`}
+          onPress={() => complete(id)}
+        />
+      </View>
+    );
+  };
+
+  const renderOpen = (id: StepId) => {
+    switch (id) {
+      case 'type':
+        return (
+          <>
+            <StepHeading
+              label="What kind?"
+              aside={!draft.kindChosen && !editing ? 'Guessed from your words' : undefined}
+            />
+            <ChoiceChips
+              label="Kind"
+              choices={ITEM_KINDS.map((k) => ({
+                value: k.id,
+                label: k.label,
+                icon: KIND_ICONS[k.id],
+              }))}
+              value={draft.kind}
+              onChoose={chooseKind}
+            />
+            {stepFooter('type')}
+          </>
+        );
+      case 'place':
+        return (
+          <>
+            <StepHeading label={draft.kind === 'meeting' ? 'Where, or a link' : 'Where'} />
+            <TextInput
+              ref={placeRef}
+              value={draft.place}
+              onChangeText={(place) => update({ place })}
+              placeholder={PLACE_PROMPT[draft.kind] ?? 'Where'}
+              placeholderTextColor={ui.muted}
+              accessibilityLabel="Place or link"
+              autoCapitalize="sentences"
+              autoCorrect={false}
+              maxLength={500}
+              returnKeyType="next"
+              onSubmitEditing={() => complete('place')}
+              style={[styles.line, { color: ui.ink, borderColor: paper.rule }]}
+            />
+            {stepFooter('place')}
+          </>
+        );
+      case 'remind':
+        return (
+          <>
+            <StepHeading
+              label="Remind me"
+              aside={reminderText && !remindPast ? `Rings ${reminderText}` : undefined}
+            />
+            <ChoiceChips
+              label="Reminder"
+              choices={REMINDERS.map((r) => ({
+                value: r.minutes,
+                label: r.label,
+                a11yLabel:
+                  r.minutes === null
+                    ? 'No reminder'
+                    : `Remind ${r.label}${r.minutes ? ' before' : ''}`,
+              }))}
+              value={draft.reminder}
+              onChoose={chooseReminder}
+            />
+            {!draft.timed && draft.reminder !== null ? (
+              <Text style={[styles.hint, { color: ui.muted }]}>
+                Without a time, reminders count back from 9:00 that morning.
+              </Text>
+            ) : null}
+            {remindPast ? (
+              <Text style={[styles.hint, { color: ui.muted }]}>
+                That moment has passed, so it won’t ring.
+              </Text>
+            ) : null}
+            {stepFooter('remind')}
+          </>
+        );
+      case 'notes':
+        return (
+          <>
+            <StepHeading label="Notes" />
+            <TextInput
+              ref={notesRef}
+              value={draft.notes}
+              onChangeText={(notes) => update({ notes })}
+              placeholder="Anything to remember?"
+              placeholderTextColor={ui.muted}
+              accessibilityLabel="Notes"
+              multiline
+              maxLength={4000}
+              style={[styles.notes, { color: ui.ink, borderColor: paper.rule }]}
+            />
+            {stepFooter('notes')}
+          </>
+        );
+    }
+  };
+
+  const folded = (id: StepId) => {
+    const props = { rule: paper.rule, onPress: () => setOpen(id) };
+    switch (id) {
+      case 'type':
+        return (
+          <FoldedStep {...props} label="Kind" value={kindLabel} icon={KIND_ICONS[draft.kind]} />
+        );
+      case 'place': {
+        const place = draft.place.trim();
+        return (
+          <FoldedStep
+            {...props}
+            label="Where"
+            value={place ? (isLink(place) ? hostOf(place) : place) : 'Not set'}
+            icon={isLink(place) ? Link2 : MapPin}
+            muted={!place}
+          />
+        );
+      }
+      case 'remind':
+        return (
+          <FoldedStep
+            {...props}
+            label="Remind"
+            value={reminderLabel(draft.reminder)}
+            detail={
+              draft.reminder === null ? undefined : remindPast ? 'passed' : (reminderText ?? '')
+            }
+            muted={draft.reminder === null}
+          />
+        );
+      case 'notes':
+        return (
+          <FoldedStep {...props} label="Notes" value={draft.notes.trim().split('\n')[0] ?? ''} />
+        );
+    }
+  };
+
+  const saveLabel = editing
+    ? 'Save changes'
+    : draft.kind === 'alarm'
+      ? 'Set alarm'
+      : `Save ${kindLabel.toLowerCase()}`;
+
+  const footer = confirm ? (
+    <View style={styles.confirm}>
+      <Text style={[styles.confirmText, { color: ui.ink }]}>
+        {confirm === 'discard' ? 'Discard this page?' : `Delete this ${kindLabel.toLowerCase()}?`}
+      </Text>
+      <View style={styles.actions}>
+        <TextButton
+          label={confirm === 'discard' ? 'Keep editing' : 'Cancel'}
+          onPress={() => setConfirm(null)}
+        />
+        <SaveButton
+          label={confirm === 'discard' ? 'Discard' : 'Delete'}
+          ready
+          onPress={() => {
+            if (confirm === 'delete' && editing) remove(editing.id);
+            onClose();
+          }}
+        />
+      </View>
+    </View>
+  ) : (
+    <View style={styles.footer}>
+      {editing ? (
+        <TextButton label="Delete" tone="muted" onPress={() => setConfirm('delete')} />
+      ) : (
+        <Progress done={layout.progress.done} total={layout.progress.total} />
+      )}
+      <View style={styles.actions}>
+        <TextButton label={notice ? 'Done' : 'Cancel'} onPress={notice ? onClose : close} />
+        {notice ? null : (
+          <SaveButton label={saveLabel} ready={ready} onPress={() => void submit()} />
+        )}
+      </View>
+    </View>
+  );
 
   return (
     <Sheet
       visible={open}
       onClose={close}
-      title={editing ? `Edit ${kindInfo.label.toLowerCase()}` : 'New'}
+      title={
+        editing
+          ? `Edit ${kindLabel.toLowerCase()}`
+          : flow.started || draft.kindChosen
+            ? `New ${kindLabel.toLowerCase()}`
+            : 'New'
+      }
       anchor="center"
+      surface={paper.paper}
+      texture={<DotGrid color={paper.dots} />}
+      footer={footer}
     >
-      {/* What it is */}
-      <View role="radiogroup" accessibilityLabel="Kind" style={styles.kinds}>
-        {ITEM_KINDS.map((k) => {
-          const selected = k.id === draft.kind;
-          const Icon = KIND_ICONS[k.id];
-          return (
-            <Pressable
-              key={k.id}
-              accessibilityRole="radio"
-              accessibilityLabel={k.label}
-              aria-checked={selected}
-              onPress={() =>
-                update({
-                  kind: k.id,
-                  ...(draft.reminderTouched ? null : { reminder: DEFAULT_REMINDER[k.id] }),
-                  ...(k.id === 'alarm' ? { timed: true } : null),
-                })
-              }
-              style={({ hovered, pressed }) => [
-                styles.kind,
-                {
-                  borderColor: selected ? ui.ink : ui.hairline,
-                  borderWidth: selected ? 1.5 : 1,
-                  backgroundColor: hovered || pressed ? ui.hover : 'transparent',
-                },
-              ]}
-            >
-              <Icon size={16} color={selected ? ui.ink : ui.muted} strokeWidth={1.5} />
-              <Text
-                style={[
-                  styles.kindLabel,
-                  { color: selected ? ui.ink : ui.muted, fontWeight: selected ? '600' : '400' },
-                ]}
-              >
-                {k.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* 1 · When */}
+      <WhenStamp
+        value={draft}
+        system={system}
+        today={today}
+        hour12={hour12}
+        paper={paper}
+        open={flow.open === 'when'}
+        onPress={() => setOpen(flow.open === 'when' ? null : 'when')}
+      />
+      {flow.open === 'when' ? (
+        <Reveal>
+          <WhenEditor
+            value={draft}
+            system={system}
+            hour12={hour12}
+            allowAllDay={draft.kind !== 'alarm'}
+            allDayLabel={draft.kind === 'note' ? 'No particular time' : 'All day'}
+            past={past}
+            onChange={update}
+            onDone={() => setOpen(null)}
+          />
+        </Reveal>
+      ) : null}
 
-      {/* Title */}
+      {/* 2 · What */}
       <TextInput
         ref={titleRef}
         value={draft.title}
-        onChangeText={(title) => update({ title })}
-        placeholder={kindInfo.placeholder}
+        onChangeText={onTitle}
+        placeholder={
+          draft.kindChosen && draft.kind === 'alarm' ? 'Label (optional)' : 'What’s this about?'
+        }
         placeholderTextColor={ui.muted}
         accessibilityLabel="Title"
         maxLength={200}
-        returnKeyType="done"
-        onSubmitEditing={() => void submit()}
-        style={[styles.title, { color: ui.ink, borderColor: error ? ui.accent : ui.hairline }]}
+        returnKeyType={layout.pending || !flow.started ? 'next' : 'done'}
+        submitBehavior="submit"
+        onSubmitEditing={advance}
+        style={[styles.title, { color: ui.ink, borderColor: error ? ui.accent : paper.rule }]}
       />
-      {error ? <Text style={[styles.error, { color: ui.accent }]}>{error}</Text> : null}
-
-      {/* When */}
-      <SheetSection label="When" aside={isToday ? 'Today' : undefined}>
-        <View style={styles.dateRow}>
-          <QuietIconButton
-            icon={ChevronLeft}
-            label="Previous day"
-            onPress={() => update({ date: addDays(draft.date, -1) })}
-            restOpacity={0.6}
-            touchRestOpacity={0.75}
-          />
-          <View style={styles.dateText} accessible accessibilityLabel={`Date: ${dateLabel}`}>
-            <Text style={[styles.date, { color: ui.ink }]}>{dateLabel}</Text>
-            {secondary ? <Text style={[styles.sub, { color: ui.muted }]}>{secondary}</Text> : null}
-          </View>
-          <QuietIconButton
-            icon={ChevronRight}
-            label="Next day"
-            onPress={() => update({ date: addDays(draft.date, 1) })}
-            restOpacity={0.6}
-            touchRestOpacity={0.75}
-          />
+      {error ? (
+        <Text style={[styles.error, { color: ui.accent }]} role="alert">
+          {error}
+        </Text>
+      ) : null}
+      {!flow.started ? (
+        <View style={styles.stepFoot}>
+          <TextButton label="Next" a11yLabel="Next: Kind" tone="muted" onPress={advance} />
         </View>
+      ) : null}
 
-        {draft.kind !== 'alarm' ? (
-          <SheetSwitch
-            label="All day"
-            value={!draft.timed}
-            onChange={(allDay) => update({ timed: !allDay })}
-            first
-          />
-        ) : null}
+      {/* 3 · The kind's own steps, one at a time */}
+      <View style={styles.steps}>
+        {layout.steps.map(({ id, mode }) =>
+          mode === 'open' ? (
+            <Reveal key={`${id}-open`}>
+              <View style={[styles.open, { borderColor: paper.rule }]}>{renderOpen(id)}</View>
+            </Reveal>
+          ) : (
+            <Reveal key={`${id}-folded`} subtle>
+              {folded(id)}
+            </Reveal>
+          ),
+        )}
+      </View>
 
-        {draft.timed ? (
-          <TimeFields
-            draft={draft}
-            hour12={hour12}
-            onChange={update}
-            onToggleSeconds={() => update({ showSeconds: !draft.showSeconds, seconds: 0 })}
-          />
-        ) : null}
-        {past ? (
-          <Text style={[styles.sub, { color: ui.muted, marginTop: 6 }]}>
-            This time has already passed.
-          </Text>
-        ) : null}
-      </SheetSection>
-
-      {/* Reminder */}
-      <SheetSection
-        label="Remind"
-        aside={
-          when?.remindAt && !remindPast
-            ? formatReminder(when.remindAt, timeZone, hour12)
-            : undefined
-        }
-      >
-        <View role="radiogroup" accessibilityLabel="Reminder" style={styles.chips}>
-          {REMINDERS.filter((r) => draft.kind !== 'alarm' || r.minutes !== null).map((r) => {
-            const selected = r.minutes === draft.reminder;
-            return (
-              <Pressable
-                key={String(r.minutes)}
-                accessibilityRole="radio"
-                accessibilityLabel={
-                  r.minutes === null
-                    ? 'No reminder'
-                    : `Remind ${r.label}${r.minutes ? ' before' : ''}`
+      {layout.addable.length > 0 ? (
+        <Reveal subtle>
+          <View style={[styles.addRow, { borderColor: paper.rule }]}>
+            {layout.addable.map((id) => (
+              <TextButton
+                key={id}
+                label={ADD_LABEL[id]}
+                a11yLabel={`Add ${STEP_LABEL[id].toLowerCase()}`}
+                tone="accent"
+                onPress={() =>
+                  setFlow((f) => (f ? { ...f, added: new Set(f.added).add(id), open: id } : f))
                 }
-                aria-checked={selected}
-                onPress={() => update({ reminder: r.minutes, reminderTouched: true })}
-                style={({ hovered, pressed }) => [
-                  styles.chip,
-                  {
-                    borderColor: selected ? ui.ink : ui.hairline,
-                    borderWidth: selected ? 1.5 : 1,
-                    backgroundColor: hovered || pressed ? ui.hover : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipLabel,
-                    { color: selected ? ui.ink : ui.muted, fontWeight: selected ? '600' : '400' },
-                  ]}
-                >
-                  {r.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        {!draft.timed && draft.reminder !== null ? (
-          <Text style={[styles.sub, { color: ui.muted, marginTop: 6 }]}>
-            All-day reminders count back from 9:00 that morning.
-          </Text>
-        ) : null}
-        {remindPast && when?.remindAt ? (
-          <Text style={[styles.sub, { color: ui.muted, marginTop: 6 }]}>
-            That reminder time has passed, so it won’t ring.
-          </Text>
-        ) : null}
-      </SheetSection>
-
-      {/* Notes */}
-      <TextInput
-        value={draft.notes}
-        onChangeText={(notes) => update({ notes })}
-        placeholder="Notes"
-        placeholderTextColor={ui.muted}
-        accessibilityLabel="Notes"
-        multiline
-        maxLength={4000}
-        style={[styles.notes, { color: ui.ink, borderColor: ui.hairline }]}
-      />
+              />
+            ))}
+          </View>
+        </Reveal>
+      ) : null}
 
       {notice ? <Text style={[styles.notice, { color: ui.ink }]}>{notice}</Text> : null}
-
-      {/* Confirmations */}
-      {confirm ? (
-        <View style={[styles.confirm, { borderColor: ui.hairline }]}>
-          <Text style={[styles.confirmText, { color: ui.ink }]}>
-            {confirm === 'discard'
-              ? 'Discard your changes?'
-              : `Delete this ${kindInfo.label.toLowerCase()}?`}
-          </Text>
-          <View style={styles.actions}>
-            <TextButton
-              label={confirm === 'discard' ? 'Keep editing' : 'Cancel'}
-              onPress={() => setConfirm(null)}
-            />
-            <TextButton
-              label={confirm === 'discard' ? 'Discard' : 'Delete'}
-              strong
-              onPress={() => {
-                if (confirm === 'delete' && editing) remove(editing.id);
-                onClose();
-              }}
-            />
-          </View>
-        </View>
-      ) : (
-        <View style={styles.footer}>
-          {editing ? <TextButton label="Delete" onPress={() => setConfirm('delete')} /> : <View />}
-          <View style={styles.actions}>
-            <TextButton label={notice ? 'Done' : 'Cancel'} onPress={notice ? onClose : close} />
-            {notice ? null : <TextButton label="Save" strong onPress={() => void submit()} />}
-          </View>
-        </View>
-      )}
     </Sheet>
   );
 }
 
-function formatReminder(remindAt: string, timeZone: string, hour12: boolean) {
-  const f = new Intl.DateTimeFormat(undefined, {
+function reminderLabel(minutes: number | null): string {
+  if (minutes === null) return 'No reminder';
+  if (minutes === 0) return 'At the time';
+  const r = REMINDERS.find((x) => x.minutes === minutes);
+  return `${r?.label ?? `${minutes} min`} before`;
+}
+
+/** "Sat 2:45 pm", in the item's zone. */
+function remindAt(iso: string | null, timeZone: string, hour12: boolean): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat(undefined, {
     weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
     hour12,
     timeZone,
-  });
-  return f.format(new Date(remindAt));
+  }).format(new Date(iso));
 }
 
-/** Hours, minutes (and seconds when asked), as typed fields; AM/PM where the locale uses it. */
-function TimeFields({
-  draft,
-  hour12,
-  onChange,
-  onToggleSeconds,
-}: {
-  draft: Draft;
-  hour12: boolean;
-  onChange: (patch: Partial<Draft>) => void;
-  onToggleSeconds: () => void;
-}) {
-  const { uiTheme: ui } = useSettings();
-  const pm = draft.hours >= 12;
-  const shownHour = hour12 ? (draft.hours % 12 === 0 ? 12 : draft.hours % 12) : draft.hours;
-
-  const setHour = (value: number) => {
-    if (!hour12) return onChange({ hours: clamp(value, 0, 23) });
-    const h = clamp(value, 1, 12) % 12;
-    onChange({ hours: pm ? h + 12 : h });
-  };
-
-  return (
-    <View
-      style={styles.timeRow}
-      accessibilityLabel={`Time: ${formatWallTime(draft, draft.showSeconds, hour12)}`}
-    >
-      <NumberField label="Hours" value={shownHour} onCommit={setHour} />
-      <Text style={[styles.colon, { color: ui.muted }]}>:</Text>
-      <NumberField
-        label="Minutes"
-        value={draft.minutes}
-        pad
-        onCommit={(m) => onChange({ minutes: clamp(m, 0, 59) })}
-      />
-      {draft.showSeconds ? (
-        <>
-          <Text style={[styles.colon, { color: ui.muted }]}>:</Text>
-          <NumberField
-            label="Seconds"
-            value={draft.seconds}
-            pad
-            onCommit={(s) => onChange({ seconds: clamp(s, 0, 59) })}
-          />
-        </>
-      ) : null}
-      {hour12 ? (
-        <View role="radiogroup" accessibilityLabel="AM or PM" style={styles.meridiem}>
-          {(['AM', 'PM'] as const).map((m) => {
-            const selected = (m === 'PM') === pm;
-            return (
-              <Pressable
-                key={m}
-                accessibilityRole="radio"
-                accessibilityLabel={m}
-                aria-checked={selected}
-                onPress={() => onChange({ hours: (draft.hours % 12) + (m === 'PM' ? 12 : 0) })}
-                style={[styles.meridiemOption, selected && { backgroundColor: ui.lume }]}
-              >
-                <Text style={[styles.meridiemText, { color: selected ? ui.onLume : ui.muted }]}>
-                  {m}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
-      <View style={styles.flex} />
-      <TextButton label={draft.showSeconds ? 'No seconds' : 'Seconds'} onPress={onToggleSeconds} />
-    </View>
-  );
+function hostOf(url: string): string {
+  const m = /^https?:\/\/([^/?#]+)/i.exec(url.trim());
+  return m ? m[1].replace(/^www\./, '') : url;
 }
-
-function NumberField({
-  label,
-  value,
-  pad = false,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  pad?: boolean;
-  onCommit: (value: number) => void;
-}) {
-  const { uiTheme: ui } = useSettings();
-  const shown = pad ? String(value).padStart(2, '0') : String(value);
-  const [text, setText] = useState(shown);
-  useEffect(() => setText(shown), [shown]);
-  const commit = () => {
-    const n = Number.parseInt(text, 10);
-    if (Number.isFinite(n)) onCommit(n);
-    else setText(shown);
-  };
-  return (
-    <TextInput
-      value={text}
-      onChangeText={(t) => setText(t.replace(/[^0-9]/g, '').slice(0, 2))}
-      onBlur={commit}
-      onSubmitEditing={commit}
-      onKeyPress={(e) => {
-        // Arrow keys step the value on web.
-        const key = e.nativeEvent.key;
-        if (key === 'ArrowUp' || key === 'ArrowDown') {
-          (e as unknown as { preventDefault?: () => void }).preventDefault?.();
-          onCommit(value + (key === 'ArrowUp' ? 1 : -1));
-        }
-      }}
-      selectTextOnFocus
-      keyboardType="number-pad"
-      inputMode="numeric"
-      maxLength={2}
-      accessibilityLabel={label}
-      style={[styles.number, { color: ui.ink, borderColor: ui.hairline }]}
-    />
-  );
-}
-
-function TextButton({
-  label,
-  onPress,
-  strong = false,
-}: {
-  label: string;
-  onPress: () => void;
-  strong?: boolean;
-}) {
-  const { uiTheme: ui } = useSettings();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ hovered, pressed }) => [
-        styles.button,
-        strong
-          ? { backgroundColor: ui.ink, opacity: pressed ? 0.8 : 1 }
-          : { backgroundColor: hovered || pressed ? ui.hover : 'transparent' },
-      ]}
-    >
-      <Text style={[styles.buttonText, { color: strong ? ui.surface : ui.ink }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 const styles = StyleSheet.create({
-  kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  kind: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-  },
-  kindLabel: { fontSize: 13 },
   title: {
-    fontSize: 20,
+    marginTop: 22,
+    fontSize: 24,
     fontWeight: '300',
+    letterSpacing: 0.1,
     paddingVertical: 10,
     borderBottomWidth: 1,
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
   },
   error: { fontSize: 12, marginTop: 6 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: -10, marginBottom: 8 },
-  dateText: { flex: 1, alignItems: 'center' },
-  date: { fontSize: 15 },
-  sub: { fontSize: 12, marginTop: 2 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12 },
-  number: {
-    width: 52,
-    height: 44,
-    borderWidth: 1,
-    borderRadius: 12,
-    textAlign: 'center',
-    fontSize: 20,
-    fontVariant: ['tabular-nums'],
+  steps: { marginTop: 18 },
+  open: {
+    paddingTop: 14,
+    paddingBottom: 4,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
   },
-  colon: { fontSize: 20, marginHorizontal: 2 },
-  meridiem: { flexDirection: 'row', marginLeft: 10, gap: 2 },
-  meridiemOption: { height: 32, paddingHorizontal: 10, borderRadius: 16, justifyContent: 'center' },
-  meridiemText: { fontSize: 12, fontWeight: '600', letterSpacing: 1 },
-  flex: { flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { height: 32, paddingHorizontal: 12, borderRadius: 16, justifyContent: 'center' },
-  chipLabel: { fontSize: 13 },
+  stepFoot: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 6, marginRight: -8 },
+  line: {
+    fontSize: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
+  },
   notes: {
-    minHeight: 64,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
+    minHeight: 84,
+    fontSize: 15,
+    lineHeight: 22,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
     textAlignVertical: 'top',
-    marginTop: 4,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null),
+  },
+  hint: { fontSize: 12, marginTop: 8 },
+  addRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginHorizontal: -12,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
   },
   notice: { fontSize: 13, lineHeight: 18, marginTop: 14 },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  actions: { flexDirection: 'row', gap: 8 },
-  button: { height: 40, paddingHorizontal: 18, borderRadius: 20, justifyContent: 'center' },
-  buttonText: { fontSize: 14, fontWeight: '500' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   confirm: {
-    marginTop: 20,
-    paddingTop: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

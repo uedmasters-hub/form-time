@@ -181,6 +181,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
       id: item.id,
       kindLabel: KIND_LABEL[item.kind],
       title: item.title,
+      place: item.place,
       when,
       hasReminder: item.remindAt !== null,
     }),

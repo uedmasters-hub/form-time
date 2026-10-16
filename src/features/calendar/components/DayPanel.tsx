@@ -17,6 +17,8 @@ export type DayItem = {
   /** "Meeting", "Alarm". */
   kindLabel: string;
   title: string;
+  /** Where, or a meeting link; "" when not set. */
+  place: string;
   /** "9:30 AM", or "All day". */
   when: string;
   hasReminder: boolean;
@@ -142,8 +144,8 @@ export function DayPanel({
           key={item.id}
           accessibilityRole="button"
           accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
-            item.hasReminder ? ', reminder set' : ''
-          }`}
+            item.place ? `, ${item.place}` : ''
+          }${item.hasReminder ? ', reminder set' : ''}`}
           accessibilityHint="Opens it to edit or delete"
           onPress={() => onOpenItem?.(item.id)}
           style={({ hovered, pressed }) => [
@@ -177,6 +179,18 @@ export function DayPanel({
           >
             {item.title}
           </Text>
+          {item.place ? (
+            <Text
+              style={[
+                styles.holidayNote,
+                { color: theme.muted, fontSize: 12 * type },
+                end && styles.textEnd,
+              ]}
+              numberOfLines={1}
+            >
+              {placeLabel(item.place)}
+            </Text>
+          ) : null}
         </Pressable>
       ))}
       {items.length > 0 ? (
@@ -240,6 +254,12 @@ export function DayPanel({
       )}
     </View>
   );
+}
+
+/** A link shows as its host ("meet.google.com"); a place as written. */
+function placeLabel(place: string): string {
+  const m = /^https?:\/\/([^/?#]+)/i.exec(place.trim());
+  return m ? m[1].replace(/^www\./, '') : place;
 }
 
 /** ", day 6 of 9 · Kathmandu Valley only" — or "" when there's nothing to add. */

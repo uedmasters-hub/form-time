@@ -15,6 +15,7 @@ import {
   type MonthRef,
 } from '../calendar-system';
 import { useToday } from '../use-today';
+import { NUMERAL_INSET } from './DayCell';
 import { DayPanel } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
 import { MonthHeader } from './MonthHeader';
@@ -32,12 +33,6 @@ const COLUMN_GAP = 72;
 const HEADER_BLOCK = 48 + 20 + 28; // header row, its margin, weekday labels
 /** Lines the panel's first line up with the weekday labels' text. */
 const WEEKDAY_TEXT_OFFSET = 8;
-/**
- * Where a two-digit day numeral starts inside its cell, as a share of the
- * cell. The month title and the panel start here, and the month arrows end
- * here on the right, so the header lines up with the dates beneath it.
- */
-const NUMERAL_INSET = 0.36;
 /**
  * Header type grows more slowly than the grid: big screens get bigger days,
  * not a shouting title.
@@ -177,6 +172,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   // big screens (phones keep the base size; tablets grow a little).
   const scale = wide ? clamp(cellSize / BASE_CELL, 1, 1.65) : clamp(cellSize / 64, 1, 1.3);
   const headerScale = 1 + (scale - 1) * HEADER_GROWTH;
+  // The title and panel start, and the month arrows end, where the dates do.
   const numeralInset = Math.round(cellSize * NUMERAL_INSET);
   const headerGap = 20 * headerScale;
   // Taller with a second line (B.S. months); the panel lines up below it.

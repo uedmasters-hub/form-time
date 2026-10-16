@@ -1,13 +1,6 @@
 import { forwardRef, memo, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  type NativeSyntheticEvent,
-} from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { Platform, Pressable, StyleSheet, View, type NativeSyntheticEvent } from 'react-native';
+import Svg, { Circle, Text as SvgText } from 'react-native-svg';
 
 import { Numeral } from '@/features/clock/components/Numeral';
 
@@ -15,7 +8,7 @@ import type { CalendarTheme } from '../calendar-theme';
 
 type DayCellProps = {
   day: number;
-  /** The Gregorian day, set small in the corner when the grid is in B.S. */
+  /** The Gregorian day, set small under the B.S. day when the grid is in B.S. */
   subDay?: number;
   size: number;
   label: string;
@@ -30,6 +23,21 @@ type DayCellProps = {
   theme: CalendarTheme;
   onPress: () => void;
 };
+
+/**
+ * How far in from either side of a cell the widest two-digit numeral
+ * reaches, as a share of the cell. What lines up with the dates — the month
+ * title, the arrows, the day panel — uses it.
+ */
+export const NUMERAL_INSET = 0.3;
+
+/**
+ * Vertical layout in the cell's 100-unit box. A single date sits centred
+ * with its holiday marks below; a B.S. date stacks the day, the marks and
+ * the A.D. day, all centred, inside the selection disc.
+ */
+const SINGLE = { numeral: 50, marks: 76 };
+const STACKED = { numeral: 38, marks: 57, subDay: 82 };
 
 /**
  * One day of the month grid. Drawn on the dial's geometry: the same monoline
@@ -53,6 +61,10 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
   ref,
 ) {
   const color = isSelected ? theme.onLume : isWeekend ? theme.accent : theme.ink;
+  const showSubDay = subDay !== undefined && size >= 40;
+  const layout = showSubDay ? STACKED : SINGLE;
+  // 9–13 px on screen, in the cell's 100-unit coordinates.
+  const subDayUnits = (Math.min(13, Math.max(9, size * 0.13)) / size) * 100;
   // Keyboard focus only (:focus-visible), so a click doesn't leave a ring.
   const [focusVisible, setFocusVisible] = useState(false);
   const onFocus = (event: NativeSyntheticEvent<unknown>) => {
@@ -100,33 +112,32 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
             <Numeral
               text={String(day)}
               x={50}
-              y={50}
+              y={layout.numeral}
               height={19}
               strokeWidth={isToday || isSelected ? 4 : 3.4}
               color={color}
             />
             {marks ? (
-              <HolidayMarks marks={marks} color={isSelected ? theme.onLume : theme.accent} />
+              <HolidayMarks
+                marks={marks}
+                y={layout.marks}
+                color={isSelected ? theme.onLume : theme.accent}
+              />
+            ) : null}
+            {showSubDay ? (
+              <SvgText
+                x={50}
+                y={STACKED.subDay}
+                textAnchor="middle"
+                fontSize={subDayUnits}
+                fill={isSelected ? theme.onLume : theme.muted}
+                opacity={isSelected ? 0.75 : 1}
+                letterSpacing={subDayUnits * 0.02}
+              >
+                {String(subDay)}
+              </SvgText>
             ) : null}
           </Svg>
-          {subDay !== undefined && size >= 40 ? (
-            <Text
-              style={[
-                styles.subDay,
-                {
-                  color: theme.muted,
-                  fontSize: Math.min(13, Math.max(9, size * 0.13)),
-                  // In the corner, clear of the selection disc.
-                  right: size * 0.02,
-                  bottom: 0,
-                },
-              ]}
-              importantForAccessibility="no"
-              accessibilityElementsHidden
-            >
-              {subDay}
-            </Text>
-          ) : null}
         </>
       )}
     </Pressable>
@@ -136,17 +147,19 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
 /** Small marks under the numeral; two side by side when both kinds fall on the day. */
 function HolidayMarks({
   marks,
+  y,
   color,
 }: {
   marks: { public: boolean; other: boolean };
+  y: number;
   color: string;
 }) {
   const both = marks.public && marks.other;
   return (
     <>
-      {marks.public ? <Circle cx={both ? 45 : 50} cy={76} r={3.4} fill={color} /> : null}
+      {marks.public ? <Circle cx={both ? 45 : 50} cy={y} r={3.4} fill={color} /> : null}
       {marks.other ? (
-        <Circle cx={both ? 55 : 50} cy={76} r={2.9} fill="none" stroke={color} strokeWidth={1.5} />
+        <Circle cx={both ? 55 : 50} cy={y} r={2.9} fill="none" stroke={color} strokeWidth={1.5} />
       ) : null}
     </>
   );
@@ -161,10 +174,5 @@ const styles = StyleSheet.create({
   },
   outside: {
     opacity: 0.32,
-  },
-  subDay: {
-    position: 'absolute',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.2,
   },
 });

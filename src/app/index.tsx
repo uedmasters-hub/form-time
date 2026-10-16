@@ -5,11 +5,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
-import { calendarTheme } from '@/features/calendar/calendar-theme';
 import { ClockPage } from '@/features/clock/components/ClockPage';
 import { PageIndicator } from '@/features/pager/PageIndicator';
 import { PagerGestureProvider } from '@/features/pager/pager-context';
 import { SwipePager } from '@/features/pager/SwipePager';
+import { SettingsSheet } from '@/features/settings/components/SettingsSheet';
+import { useSettings } from '@/features/settings/SettingsProvider';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const VIEWS = ['Clock', 'Calendar'] as const;
@@ -27,6 +28,8 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const progress = useSharedValue(0);
+  const { uiTheme } = useSettings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [page, setPage] = useState(CLOCK);
   // True while a finger/pointer is moving the pages, so the clock keeps
@@ -41,7 +44,7 @@ export default function Home() {
 
   return (
     <PagerGestureProvider>
-      <View style={styles.screen}>
+      <View style={[styles.screen, { backgroundColor: uiTheme.page }]}>
         <SwipePager
           index={page}
           onIndexChange={onIndexChange}
@@ -55,6 +58,7 @@ export default function Home() {
 
         <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
           <SettingsButton
+            onPress={() => setSettingsOpen((open) => !open)}
             style={{
               position: 'absolute',
               left: insets.left + EDGE,
@@ -70,11 +74,13 @@ export default function Home() {
               index={page}
               progress={progress}
               onSelect={onIndexChange}
-              activeColor={calendarTheme.accent}
-              idleColor={calendarTheme.lumeEdge}
+              activeColor={uiTheme.accent}
+              idleColor={uiTheme.hairline}
             />
           </View>
         </View>
+
+        <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </View>
     </PagerGestureProvider>
   );
@@ -84,7 +90,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     width: '100%',
-    backgroundColor: calendarTheme.page,
     overflow: 'hidden',
   },
   indicatorRow: {

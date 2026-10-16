@@ -86,7 +86,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       })}
 
       {/* Lume halo behind every index */}
-      <G filter={url('glow')} opacity={0.6}>
+      <G filter={url('glow')} opacity={theme.indexGlow}>
         {HOURS.map((h) => {
           const outer = polar(DIAL.indexOuter - 4, h * 30);
           const inner = polar(DIAL.indexInner + 4, h * 30);
@@ -106,7 +106,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       </G>
 
       {/* Contact shadow: indices are applied, so they sit slightly above the face */}
-      <G filter={url('soft')} opacity={0.08} transform="translate(2 4)">
+      <G filter={url('soft')} opacity={theme.contactShadow} transform="translate(2 4)">
         {HOURS.map((h) => {
           const outer = polar(DIAL.indexOuter, h * 30);
           const inner = polar(DIAL.indexInner, h * 30);
@@ -157,7 +157,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
               height={INDEX_LENGTH - 18}
               rx={1.2}
               fill={theme.lumeHighlight}
-              opacity={0.85}
+              opacity={theme.lumeHighlightOpacity}
             />
           </G>
         );
@@ -182,23 +182,34 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
         );
       })}
 
+      {/* Night dials: the hour numerals glow (a blurred copy beneath them) */}
+      {theme.numeralGlow > 0 ? (
+        <G filter={url('glow')} opacity={theme.numeralGlow}>
+          {HOURS.map((h) => (
+            <HourNumeral key={`hour-glow-${h}`} position={h} color={theme.lumeGlow} />
+          ))}
+        </G>
+      ) : null}
+
       {/* Hour numerals, upright */}
-      {HOURS.map((h) => {
-        const hour = h === 0 ? 12 : h;
-        const p = polar(DIAL.hourNumeralRadius, h * 30);
-        return (
-          <Numeral
-            key={`hour-${hour}`}
-            text={String(hour)}
-            x={p.x}
-            y={p.y}
-            height={38.5}
-            strokeWidth={6.8}
-            color={theme.numeral}
-          />
-        );
-      })}
+      {HOURS.map((h) => (
+        <HourNumeral key={`hour-${h}`} position={h} color={theme.numeral} />
+      ))}
     </Svg>
+  );
+}
+
+function HourNumeral({ position, color }: { position: number; color: string }) {
+  const p = polar(DIAL.hourNumeralRadius, position * 30);
+  return (
+    <Numeral
+      text={String(position === 0 ? 12 : position)}
+      x={p.x}
+      y={p.y}
+      height={38.5}
+      strokeWidth={6.8}
+      color={color}
+    />
   );
 }
 

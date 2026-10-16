@@ -38,15 +38,13 @@ export type HandAngles = {
 
 /**
  * Hand angles in degrees, clockwise from 12, for the device's local time.
- * `smoothSeconds` adds milliseconds so the second hand can sweep; when false
- * the second hand lands exactly on whole seconds (quartz tick).
+ * `secondStep` is the size of one second-hand step in seconds: 1 for a
+ * quartz tick, 1/8 for a mechanical beat, 0 for a continuous sweep.
  */
-export function getHandAngles(
-  date: Date,
-  { smoothSeconds }: { smoothSeconds: boolean },
-): HandAngles {
-  const wholeSeconds = date.getSeconds();
-  const seconds = smoothSeconds ? wholeSeconds + date.getMilliseconds() / 1000 : wholeSeconds;
+export function getHandAngles(date: Date, { secondStep }: { secondStep: number }): HandAngles {
+  const exact = date.getSeconds() + date.getMilliseconds() / 1000;
+  // Snap to the step; the epsilon keeps a value like 2.9999 from flooring short.
+  const seconds = secondStep > 0 ? Math.floor(exact / secondStep + 1e-6) * secondStep : exact;
   const minutes = date.getMinutes() + seconds / 60;
   const hours = (date.getHours() % 12) + minutes / 60;
 

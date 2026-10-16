@@ -18,6 +18,7 @@ type ClockHandsProps = {
   angles: HandAngles;
   theme: DialTheme;
   idPrefix: string;
+  showSecondHand?: boolean;
 };
 
 // Outlines never change, so build them once.
@@ -125,14 +126,20 @@ function SculptedHand({
         stroke={theme.lumeHighlight}
         strokeWidth={1.6}
         strokeLinecap="round"
-        opacity={0.9}
+        opacity={theme.lumeHighlightOpacity}
       />
     </G>
   );
 }
 
 /** The moving layer: hands, hub and their shadows. Drawn over ClockDial. */
-export function ClockHands({ size, angles, theme, idPrefix }: ClockHandsProps) {
+export function ClockHands({
+  size,
+  angles,
+  theme,
+  idPrefix,
+  showSecondHand = true,
+}: ClockHandsProps) {
   const id = (name: string) => `${idPrefix}-hands-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
 
@@ -159,23 +166,32 @@ export function ClockHands({ size, angles, theme, idPrefix }: ClockHandsProps) {
       </Defs>
 
       {/* Shadows first, so no hand is ever shaded by its own shadow */}
-      <SoftShadow d={HOUR_PATH} angle={angles.hour} offset={SHADOW.hour} color={theme.lumeGlow} />
+      <SoftShadow
+        d={HOUR_PATH}
+        angle={angles.hour}
+        offset={SHADOW.hour}
+        color={theme.lumeGlow}
+        strength={theme.handGlow}
+      />
       <SoftShadow
         d={MINUTE_PATH}
         angle={angles.minute}
         offset={SHADOW.minute}
         color={theme.lumeGlow}
+        strength={theme.handGlow}
       />
-      <SoftShadow
-        d={SECOND_PATH}
-        angle={angles.second}
-        offset={SHADOW.second}
-        color={theme.lumeGlow}
-        strength={0.2}
-      />
+      {showSecondHand ? (
+        <SoftShadow
+          d={SECOND_PATH}
+          angle={angles.second}
+          offset={SHADOW.second}
+          color={theme.lumeGlow}
+          strength={0.2 * theme.handGlow}
+        />
+      ) : null}
       <G transform={`translate(${CENTER + SHADOW.hub.dx} ${CENTER + SHADOW.hub.dy})`}>
-        <Circle r={40} fill={theme.lumeGlow} opacity={0.025} />
-        <Circle r={32} fill={theme.lumeGlow} opacity={0.03} />
+        <Circle r={40} fill={theme.lumeGlow} opacity={Math.min(0.15, 0.025 * theme.handGlow)} />
+        <Circle r={32} fill={theme.lumeGlow} opacity={Math.min(0.18, 0.03 * theme.handGlow)} />
       </G>
 
       <SculptedHand
@@ -229,15 +245,18 @@ export function ClockHands({ size, angles, theme, idPrefix }: ClockHandsProps) {
         opacity={0.6}
       />
 
-      <G transform={`translate(${CENTER} ${CENTER}) rotate(${angles.second})`}>
-        <Path
-          d={SECOND_PATH}
-          fill={url('steel')}
-          stroke={theme.steelEdge}
-          strokeWidth={0.7}
-          strokeLinejoin="round"
-        />
-      </G>
+      {showSecondHand ? (
+        <G transform={`translate(${CENTER} ${CENTER}) rotate(${angles.second})`}>
+          <Path
+            d={SECOND_PATH}
+            fill={url('steel')}
+            // On a night dial the dark steel needs a faint lume edge to be seen.
+            stroke={theme.mode === 'night' ? theme.scale : theme.steelEdge}
+            strokeWidth={theme.mode === 'night' ? 1 : 0.7}
+            strokeLinejoin="round"
+          />
+        </G>
+      ) : null}
 
       {/* Cap: a polished domed screw */}
       <Circle cx={CENTER + 0.5} cy={CENTER + 1.5} r={10} fill={theme.steelShade} opacity={0.6} />

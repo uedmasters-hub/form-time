@@ -1,17 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
+import { useSettings } from '@/features/settings/SettingsProvider';
 
-import {
-  addMonths,
-  defaultWeekStart,
-  isSameDay,
-  isSameMonth,
-  type CalendarDate,
-} from '../calendar-date';
-import { calendarTheme } from '../calendar-theme';
+import { addMonths, isSameDay, isSameMonth, type CalendarDate } from '../calendar-date';
 import { useToday } from '../use-today';
 import { DayPanel } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
@@ -45,9 +39,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * swipes are left to the pager that switches between Clock and Calendar.
  */
 export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
-  const theme = calendarTheme;
+  const { uiTheme: theme, weekStart } = useSettings();
   const today = useToday();
-  const weekStart = useMemo(() => defaultWeekStart(), []);
 
   const [selected, setSelected] = useState<CalendarDate>(today);
   const [visible, setVisible] = useState({ year: today.year, month: today.month });

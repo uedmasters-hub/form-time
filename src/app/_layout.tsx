@@ -3,15 +3,27 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { SettingsProvider, useSettings } from '@/features/settings/SettingsProvider';
+import { isDark } from '@/theme/color';
+
+/** Light status-bar content on night and dark dials, dark on light ones. */
+function ThemedStatusBar() {
+  const { uiTheme } = useSettings();
+  const darkPage = uiTheme.mode === 'night' || isDark(uiTheme.page);
+  return <StatusBar style={darkPage ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   return (
     // Required by react-native-gesture-handler for the Clock ↔ Calendar swipe.
     <GestureHandlerRootView style={styles.root}>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="explore" />
-      </Stack>
+      <SettingsProvider>
+        <ThemedStatusBar />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="explore" />
+        </Stack>
+      </SettingsProvider>
     </GestureHandlerRootView>
   );
 }

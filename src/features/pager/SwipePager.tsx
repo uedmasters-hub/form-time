@@ -249,7 +249,12 @@ export function SwipePager({
         return;
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest?.('input, textarea, select, [contenteditable="true"], [role="slider"]'))
+      // Not inside text fields, sliders, or an open dialog (e.g. settings).
+      if (
+        target?.closest?.(
+          'input, textarea, select, [contenteditable="true"], [role="slider"], [aria-modal="true"]',
+        )
+      )
         return;
       event.preventDefault();
       goTo(indexRef.current + (event.key === 'ArrowRight' ? 1 : -1));

@@ -1,16 +1,24 @@
 import { useEffect, useState } from 'react';
 
 /**
- * How the second hand moves.
- * - sweep: continuous, redrawn at most ~30 times a second.
- * - tick:  one step per second, landing exactly on the second boundary.
+ * How the second hand moves — the three classic watch movements.
+ * - quartz:     one step a second, landing exactly on the second.
+ * - mechanical: eight beats a second (28,800 vph), the fine stepped sweep of
+ *               a mechanical watch.
+ * - smooth:     continuous, redrawn every frame.
  *
- * Either way the time is read from the system clock on every update, so the
- * display can't drift, and background tabs or sleep simply resume correctly.
+ * Whatever the movement, the time is read from the system clock on every
+ * update, so the display can't drift, and sleep or background tabs simply
+ * resume at the right time.
  */
-export type ClockMovement = 'sweep' | 'tick';
+export type ClockMovement = 'quartz' | 'mechanical' | 'smooth';
 
-const SWEEP_FRAME_MS = 1000 / 30;
+/** Seconds per visible step of the second hand (0 = continuous). */
+export const SECOND_STEP: Record<ClockMovement, number> = {
+  quartz: 1,
+  mechanical: 1 / 8,
+  smooth: 0,
+};
 
 /**
  * @param paused Stop updating (e.g. the clock is off screen). The hands jump
@@ -23,11 +31,14 @@ export function useClockTime(movement: ClockMovement, paused = false): Date {
     if (paused) return;
     setNow(new Date());
 
-    if (movement === 'tick') {
+    const stepMs = SECOND_STEP[movement] * 1000;
+
+    if (stepMs > 0) {
+      // Wake exactly on each step boundary (a couple of ms past it, so the
+      // clock has already rolled over) instead of polling.
       let timer: ReturnType<typeof setTimeout>;
       const schedule = () => {
-        // A couple of ms past the boundary so getSeconds() has already rolled over.
-        const delay = 1000 - (Date.now() % 1000) + 2;
+        const delay = stepMs - (Date.now() % stepMs) + 2;
         timer = setTimeout(() => {
           setNow(new Date());
           schedule();
@@ -38,12 +49,8 @@ export function useClockTime(movement: ClockMovement, paused = false): Date {
     }
 
     let frame = 0;
-    let last = 0;
-    const loop = (time: number) => {
-      if (time - last >= SWEEP_FRAME_MS) {
-        last = time;
-        setNow(new Date());
-      }
+    const loop = () => {
+      setNow(new Date());
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);

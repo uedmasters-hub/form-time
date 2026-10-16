@@ -39,7 +39,7 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
   },
   ref,
 ) {
-  const color = isSelected ? theme.ink : isWeekend ? theme.accent : theme.ink;
+  const color = isSelected ? theme.onLume : isWeekend ? theme.accent : theme.ink;
   // Keyboard focus only (:focus-visible), so a click doesn't leave a ring.
   const [focusVisible, setFocusVisible] = useState(false);
   const onFocus = (event: NativeSyntheticEvent<unknown>) => {

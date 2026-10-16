@@ -5,7 +5,7 @@ import { defaultDialTheme, type DialTheme } from '../dial-theme';
 import { getHandAngles } from '../geometry';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-import { useClockTime, type ClockMovement } from '../use-clock-time';
+import { SECOND_STEP, useClockTime, type ClockMovement } from '../use-clock-time';
 import { ClockDial } from './ClockDial';
 import { ClockHands } from './ClockHands';
 import { ClockRim } from './ClockRim';
@@ -14,8 +14,9 @@ type AnalogClockProps = {
   /** Diameter in points. */
   size: number;
   theme?: DialTheme;
-  /** Defaults to a sweep, or a one-second tick when reduce motion is on. */
+  /** Second-hand movement. Reduce motion always uses the one-second quartz step. */
   movement?: ClockMovement;
+  showSecondHand?: boolean;
   /** Stop redrawing, e.g. while another view covers the clock. */
   paused?: boolean;
 };
@@ -30,7 +31,8 @@ const timeLabel = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: 
 export function AnalogClock({
   size,
   theme = defaultDialTheme,
-  movement,
+  movement = 'smooth',
+  showSecondHand = true,
   paused = false,
 }: AnalogClockProps) {
   // SVG ids are document-global on web; React ids can contain characters
@@ -38,9 +40,11 @@ export function AnalogClock({
   const idPrefix = `ft${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
   const reducedMotion = useReducedMotion();
-  const effectiveMovement = movement ?? (reducedMotion ? 'tick' : 'sweep');
+  // Without a second hand nothing moves faster than the minute hand, so
+  // a once-a-second update is plenty.
+  const effectiveMovement: ClockMovement = reducedMotion || !showSecondHand ? 'quartz' : movement;
   const now = useClockTime(effectiveMovement, paused);
-  const angles = getHandAngles(now, { smoothSeconds: effectiveMovement === 'sweep' });
+  const angles = getHandAngles(now, { secondStep: SECOND_STEP[effectiveMovement] });
 
   // Pointer hover (mouse, trackpad, stylus). Touch screens never hover, so the
   // rim simply stays hidden there.
@@ -58,7 +62,13 @@ export function AnalogClock({
       <ClockDial size={size} theme={theme} idPrefix={idPrefix} />
       <ClockRim size={size} theme={theme} visible={hovered} animate={!reducedMotion} />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <ClockHands size={size} angles={angles} theme={theme} idPrefix={idPrefix} />
+        <ClockHands
+          size={size}
+          angles={angles}
+          theme={theme}
+          idPrefix={idPrefix}
+          showSecondHand={showSecondHand}
+        />
       </View>
     </View>
   );

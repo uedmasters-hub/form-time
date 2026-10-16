@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { calendarTheme } from '@/features/calendar/calendar-theme';
+import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCanHover } from '@/hooks/use-can-hover';
 
 type QuietIconButtonProps = {
@@ -42,6 +42,7 @@ export function QuietIconButton({
   iconSize = 20,
   style,
 }: QuietIconButtonProps) {
+  const { uiTheme } = useSettings();
   const canHover = useCanHover();
   // Keyboard focus only (:focus-visible), so a mouse click doesn't leave a ring.
   const [focusVisible, setFocusVisible] = useState(false);
@@ -66,12 +67,12 @@ export function QuietIconButton({
           opacity:
             hovered || pressed || focusVisible ? 1 : canHover ? restOpacity : touchRestOpacity,
         },
-        pressed && styles.pressed,
-        focusVisible && styles.focused,
+        pressed && [styles.pressed, { backgroundColor: uiTheme.hover }],
+        focusVisible && { borderColor: uiTheme.accent },
         style,
       ]}
     >
-      <Icon size={iconSize} color={calendarTheme.ink} strokeWidth={1.5} />
+      <Icon size={iconSize} color={uiTheme.ink} strokeWidth={1.5} />
     </Pressable>
   );
 }
@@ -87,10 +88,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   pressed: {
-    backgroundColor: 'rgba(14, 87, 97, 0.08)',
     transform: [{ scale: 0.94 }],
-  },
-  focused: {
-    borderColor: calendarTheme.accent,
   },
 });

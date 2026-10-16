@@ -15,13 +15,23 @@ type DayPanelProps = {
   numeralHeight: number;
   /** Type scale for the labels; 1 at the base layout size. */
   scale?: number;
+  /** 'end' sets the panel flush right, for the page's right edge. */
+  align?: 'start' | 'end';
 };
 
 /**
  * The selected day, set like the dial: a large monoline numeral, the weekday
  * above it, and its (currently empty) agenda below a hairline.
  */
-export function DayPanel({ date, isToday, theme, numeralHeight, scale = 1 }: DayPanelProps) {
+export function DayPanel({
+  date,
+  isToday,
+  theme,
+  numeralHeight,
+  scale = 1,
+  align = 'start',
+}: DayPanelProps) {
+  const end = align === 'end';
   const type = Math.min(scale, 1.35);
   const stroke = Math.max(3, numeralHeight * 0.17);
   const text = String(date.day);
@@ -32,7 +42,7 @@ export function DayPanel({ date, isToday, theme, numeralHeight, scale = 1 }: Day
 
   return (
     <View
-      style={styles.panel}
+      style={[styles.panel, end && styles.panelEnd]}
       accessible
       accessibilityLabel={`${formatDate(date, {
         weekday: 'long',
@@ -45,6 +55,7 @@ export function DayPanel({ date, isToday, theme, numeralHeight, scale = 1 }: Day
         style={[
           styles.weekday,
           { color: isToday ? theme.accent : theme.muted, fontSize: 11 * type },
+          end && styles.textEnd,
         ]}
       >
         {(isToday ? `Today · ${weekdayName}` : weekdayName).toLocaleUpperCase()}
@@ -60,7 +71,11 @@ export function DayPanel({ date, isToday, theme, numeralHeight, scale = 1 }: Day
         />
       </Svg>
       <Text
-        style={[styles.monthYear, { color: theme.ink, fontSize: 15 * type, marginTop: 12 * scale }]}
+        style={[
+          styles.monthYear,
+          { color: theme.ink, fontSize: 15 * type, marginTop: 12 * scale },
+          end && styles.textEnd,
+        ]}
       >
         {monthYear}
       </Text>
@@ -71,7 +86,11 @@ export function DayPanel({ date, isToday, theme, numeralHeight, scale = 1 }: Day
           { backgroundColor: theme.hairline, marginTop: 24 * scale, marginBottom: 16 * scale },
         ]}
       />
-      <Text style={[styles.empty, { color: theme.muted, fontSize: 13 * type }]}>No events</Text>
+      <Text
+        style={[styles.empty, { color: theme.muted, fontSize: 13 * type }, end && styles.textEnd]}
+      >
+        No events
+      </Text>
     </View>
   );
 }
@@ -80,12 +99,18 @@ const styles = StyleSheet.create({
   panel: {
     alignItems: 'flex-start',
   },
+  panelEnd: {
+    alignItems: 'flex-end',
+  },
+  textEnd: {
+    textAlign: 'right',
+  },
   weekday: {
     fontWeight: '500',
     letterSpacing: 2,
   },
   numeral: {
-    marginLeft: -2,
+    marginHorizontal: -2,
   },
   monthYear: {
     fontWeight: '300',

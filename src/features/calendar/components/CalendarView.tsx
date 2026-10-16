@@ -32,14 +32,16 @@ const PANEL_OFFSET = 76; // lines the panel's first line up with the weekday lab
 
 /** Day-cell limits: wide layouts grow with the screen up to MAX_WIDE_CELL. */
 const MIN_CELL = 44;
+/** Below this, there's no room for a centred grid with the panel at the edge. */
+const MIN_CENTERED_CELL = 60;
 const MAX_WIDE_CELL = 124;
 const MAX_NARROW_CELL = 84;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
- * Month view with the selected day beside it (wide screens) or below it
- * (narrow screens). Scrolls vertically when the screen is short; horizontal
+ * Month view centred on the page, with the selected day set apart at the
+ * right edge (wide screens) or below the grid (narrow screens). Scrolls vertically when the screen is short; horizontal
  * swipes are left to the pager that switches between Clock and Calendar.
  */
 export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
@@ -71,23 +73,26 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
 
   const goToday = () => select(today);
 
-  const wide = area.width >= 860 && area.height >= 560;
-  const padding = wide ? 56 : 20;
-  const usableHeight = area.height - topInset - bottomInset - padding * 2;
+  // Wide: the grid is centred on the page and the day panel sits at the right
+  // edge, so each side of the grid must leave room for panel + gap. Everything
+  // beside the grid grows with the cells, so solve for the cell size that
+  // fills the height, or the width, first.
+  const widePadding = 56;
+  const centeredCell = Math.floor(
+    clamp(
+      Math.min(
+        (area.height - topInset - bottomInset - widePadding * 2) / (6 + HEADER_BLOCK / BASE_CELL),
+        (area.width - widePadding * 2) / (7 + (2 * (PANEL_WIDTH + COLUMN_GAP)) / BASE_CELL),
+      ),
+      MIN_CELL,
+      MAX_WIDE_CELL,
+    ),
+  );
+  const wide = area.width >= 860 && area.height >= 560 && centeredCell >= MIN_CENTERED_CELL;
+  const padding = wide ? widePadding : 20;
 
-  // Everything beside the grid (header, panel, gap) grows with the cells, so
-  // solve for the cell size that fills the height, or the width, first.
   const cellSize = wide
-    ? Math.floor(
-        clamp(
-          Math.min(
-            usableHeight / (6 + HEADER_BLOCK / BASE_CELL),
-            (area.width - padding * 2) / (7 + (PANEL_WIDTH + COLUMN_GAP) / BASE_CELL),
-          ),
-          MIN_CELL,
-          MAX_WIDE_CELL,
-        ),
-      )
+    ? centeredCell
     : Math.floor(clamp((area.width - padding * 2) / 7, 38, MAX_NARROW_CELL));
 
   // Type and spacing follow the cells: 1 at the reference size, larger on
@@ -111,7 +116,8 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={wide ? styles.wideRow : styles.narrowColumn}>
+          <View style={wide ? styles.wideStage : styles.narrowColumn}>
+            {/* The month — centred on the page */}
             <View style={{ width: cellSize * 7 }}>
               <MonthHeader
                 year={visible.year}
@@ -137,13 +143,15 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               />
             </View>
 
+            {/* The selected day — set apart at the right edge (wide) or below (narrow) */}
             <View
               style={
                 wide
                   ? {
+                      position: 'absolute',
+                      right: 0,
+                      top: PANEL_OFFSET * scale,
                       width: PANEL_WIDTH * scale,
-                      marginLeft: COLUMN_GAP * scale,
-                      paddingTop: PANEL_OFFSET * scale,
                     }
                   : {
                       width: cellSize * 7,
@@ -158,6 +166,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 theme={theme}
                 numeralHeight={(wide ? 64 : 44) * scale}
                 scale={scale}
+                align={wide ? 'end' : 'start'}
               />
             </View>
           </View>
@@ -178,9 +187,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  wideRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  wideStage: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   narrowColumn: {
     alignItems: 'center',

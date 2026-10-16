@@ -167,9 +167,14 @@ function TimeNumerals({
   });
 
   return (
-    <Svg width={width} height={svgHeight} accessibilityElementsHidden>
-      {nodes}
-    </Svg>
+    // The stamp's label already reads the time; hide the drawing from
+    // assistive tech. (On a View: react-native-svg passes props straight to
+    // the DOM on web, where React Native's accessibility props don't exist.)
+    <View aria-hidden>
+      <Svg width={width} height={svgHeight}>
+        {nodes}
+      </Svg>
+    </View>
   );
 }
 

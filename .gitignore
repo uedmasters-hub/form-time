@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+web-build/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+
+.idea/
+.vscode/

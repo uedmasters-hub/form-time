@@ -1,0 +1,15 @@
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon:hover {
+  opacity: 0.8;
+}

@@ -13,7 +13,7 @@ import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
 import { regionOf } from '@/features/region/regions';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { Sidebar } from '@/features/sidebar/components/Sidebar';
-import { SIDEBAR_GAP, sidebarLayout } from '@/features/sidebar/sidebar-layout';
+import { sidebarLayout } from '@/features/sidebar/sidebar-layout';
 
 import { isSameDay, sixWeeksFrom, toISODate, type CalendarDate } from '../calendar-date';
 import {
@@ -205,15 +205,15 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
 
   // Wide: the side panel (the same one the clock has) sits at the right
   // edge and the grid is centred in the space it leaves, like the clock's
-  // dial. That space is kept whether or not the panel's halves are shown, so
-  // the grid never moves. Solve for the cell size that fills the height, or
-  // the width, first.
+  // dial; hiding one half of the panel doesn't move it. With the whole panel
+  // off, the grid is centred on the page. Solve for the cell size that fills
+  // the height, or the width, first.
   const panel = sidebarLayout(area.width, area.height, {
     showDate: settings.showDayDate,
     showEvents: settings.showDayEvents,
   });
-  const gridLeft = panel.side;
-  const gridRight = panel.side + panel.column + SIDEBAR_GAP;
+  const gridLeft = panel.main.left;
+  const gridRight = panel.main.right;
   const widePadding = 56;
   const centeredCell = Math.floor(
     clamp(

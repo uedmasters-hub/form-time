@@ -19,6 +19,8 @@ export const SIDEBAR_HEADING = 32;
 /** Breathing room between the date and the list (wide) or the content (narrow). */
 const DATE_GAP = 40;
 const NARROW_GAP = 16;
+/** Wide, with the panel off: the content keeps this share of the width clear at each side. */
+const OPEN_MARGIN = 0.08;
 
 export type Insets = { left: number; right: number; top: number; bottom: number };
 
@@ -93,11 +95,13 @@ export function sidebarLayout(
     height - SIDEBAR_TOP - SIDEBAR_BOTTOM - dateHeight - (showDate ? DATE_GAP : 0),
   );
   const shown = showDate || showEvents;
+  // With the panel off, the content is centred on the page with real margins.
+  const open = Math.max(side, Math.round(width * OPEN_MARGIN));
 
   const main: Insets = wide
     ? {
-        left: side,
-        right: shown ? side + column + SIDEBAR_GAP : side,
+        left: shown ? side : open,
+        right: shown ? side + column + SIDEBAR_GAP : open,
         top: SIDEBAR_TOP,
         bottom: SIDEBAR_BOTTOM,
       }

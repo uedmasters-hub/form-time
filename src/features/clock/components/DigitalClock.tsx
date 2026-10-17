@@ -73,7 +73,13 @@ export function DigitalClock({
   // Size from the widest possible time, so it never changes with the digits.
   const perUnit = timeNumeralsWidth(ZERO, 100, { padHour: true, tabular: true }) / 100;
   const SIDE_SHARE = 0.46; // the seconds / AM-PM column, as a share of the numeral height
-  let numeral = Math.min(areaWidth / (perUnit + SIDE_SHARE), areaHeight * (wide ? 0.55 : 0.8), 340);
+  // Wide: the time keeps clear of its area's sides, so it never runs edge to edge.
+  const fill = wide ? 0.9 : 1;
+  let numeral = Math.min(
+    (areaWidth * fill) / (perUnit + SIDE_SHARE),
+    areaHeight * (wide ? 0.55 : 0.8),
+    340,
+  );
   if (compact) numeral *= 0.68;
   numeral = Math.max(24, Math.floor(numeral));
   const mainStroke = Math.max(2.4, numeral * 0.11);

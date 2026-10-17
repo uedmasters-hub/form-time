@@ -1,0 +1,4 @@
+# Built here, never committed: the web export the app loads, and the packages.
+node_modules/
+app-dist/
+release/

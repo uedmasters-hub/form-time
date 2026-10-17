@@ -1,0 +1,76 @@
+{
+  "name": "form-time-desktop",
+  "productName": "FORM TIME",
+  "version": "1.0.0",
+  "description": "FORM / TIME for macOS and Windows: the web app in its own window.",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "web": "node scripts/build-web.cjs",
+    "start": "npm run web && electron .",
+    "open": "electron .",
+    "dist:mac": "npm run web && electron-builder --mac --publish never",
+    "dist:win": "npm run web && electron-builder --win --publish never",
+    "dist:linux": "npm run web && electron-builder --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.formtime.desktop",
+    "productName": "FORM TIME",
+    "copyright": "© FORM / TIME",
+    "publish": null,
+    "directories": {
+      "output": "release",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "main.cjs",
+      "package.json",
+      "app-dist/**/*"
+    ],
+    "icon": "../assets/images/icon.png",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "FORM TIME"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
+    }
+  }
+}

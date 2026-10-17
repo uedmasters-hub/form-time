@@ -15,7 +15,7 @@ export type DialTheme = {
   /** Dial surface: radial from centre to edge. */
   dialCenter: string;
   dialEdge: string;
-  /** Hairline at the dial's outer edge, shown only while hovering. */
+  /** Outline for small renderings of the dial (the swatches in Settings). */
   dialRim: string;
 
   /** Minute track: ticks and the outer 05–60 scale. */

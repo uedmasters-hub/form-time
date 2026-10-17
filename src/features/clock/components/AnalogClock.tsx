@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { defaultDialTheme, type DialTheme } from '../dial-theme';
@@ -8,7 +8,6 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { SECOND_STEP, useClockTime, type ClockMovement } from '../use-clock-time';
 import { ClockDial } from './ClockDial';
 import { ClockHands } from './ClockHands';
-import { ClockRim } from './ClockRim';
 
 type AnalogClockProps = {
   /** Diameter in points. */
@@ -38,8 +37,8 @@ function formatTime(date: Date, timeZone?: string) {
 
 /**
  * Live analog clock, drawn as stacked SVG layers: a static dial that renders
- * once, a rim that appears only on hover, and a hands layer that is the only
- * thing redrawn each frame.
+ * once, and a hands layer that is the only thing redrawn each frame. The
+ * face has no outline: it blends into the page.
  */
 export function AnalogClock({
   size,
@@ -61,21 +60,14 @@ export function AnalogClock({
   const now = useClockTime(effectiveMovement, paused);
   const angles = getHandAngles(now, { secondStep: SECOND_STEP[effectiveMovement], timeZone });
 
-  // Pointer hover (mouse, trackpad, stylus). Touch screens never hover, so the
-  // rim simply stays hidden there.
-  const [hovered, setHovered] = useState(false);
-
   return (
     <View
       style={{ width: size, height: size }}
       accessible
       accessibilityRole="image"
       accessibilityLabel={`Clock showing ${formatTime(now, timeZone)}`}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
     >
       <ClockDial size={size} theme={theme} idPrefix={idPrefix} flat={flat} />
-      <ClockRim size={size} theme={theme} visible={hovered} animate={!reducedMotion} />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <ClockHands
           size={size}

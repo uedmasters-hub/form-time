@@ -69,8 +69,7 @@ function ClockDialImpl({ size, theme, idPrefix, flat = false }: ClockDialProps) 
         </Defs>
       )}
 
-      {/* Face. Its edge colour matches the page, so it has no visible boundary;
-          the rim is a separate hover-only layer (ClockRim). */}
+      {/* Face. Its edge colour matches the page, so it has no visible boundary. */}
       <Circle cx={CENTER} cy={CENTER} r={DIAL.faceRadius} fill={solid ? solid.face : url('face')} />
 
       {/* Minute track — the hour positions are carried by the applied indices */}

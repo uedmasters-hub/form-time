@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ import { PagerGestureProvider } from '@/features/pager/pager-context';
 import { SwipePager } from '@/features/pager/SwipePager';
 import { SettingsSheet } from '@/features/settings/components/SettingsSheet';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { useSound } from '@/features/sound/SoundProvider';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const VIEWS = ['Clock', 'Calendar'] as const;
@@ -51,6 +52,13 @@ export default function Home() {
     setSwiping(false);
   }, []);
   const onSwipeStart = useCallback(() => setSwiping(true), []);
+
+  // Ticking and the minute mark belong to the clock: only while it's on screen.
+  const { setClockOnScreen } = useSound();
+  useEffect(() => {
+    setClockOnScreen(page === CLOCK);
+    return () => setClockOnScreen(false);
+  }, [page, setClockOnScreen]);
 
   return (
     <PagerGestureProvider>

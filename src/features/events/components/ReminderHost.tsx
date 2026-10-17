@@ -3,17 +3,19 @@ import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { useSound } from '@/features/sound/SoundProvider';
 
 import { useEvents } from '../EventsProvider';
 import { formatWallTime, placeIn } from '../item-time';
-import { playChime, showSystemNotification } from '../notifications';
+import { showSystemNotification } from '../notifications';
 import { readFired, writeFired } from '../reminder-state';
 import { KIND_LABEL, type CalendarItem } from '../types';
 
 /**
  * Rings reminders while FORM / TIME is open: a quiet card at the top of the
- * screen, a system notification where the browser allows it, and a chime
- * for alarms. Reminders that came due while the app was closed (within the
+ * screen, a system notification where the browser allows it, and a sound
+ * (Settings → Sound): a short phrase, repeated for alarms, or one soft note
+ * for missed ones. Reminders that came due while the app was closed (within the
  * last 12 hours) show as missed when it opens; older ones are let go.
  */
 const CATCH_UP_MS = 12 * 3600_000;
@@ -26,6 +28,7 @@ type Ringing = { item: CalendarItem; missed: boolean };
 export function ReminderHost() {
   const { items, loaded, save } = useEvents();
   const { uiTheme: ui, timeZone } = useSettings();
+  const { ring, notify, willSound } = useSound();
   const insets = useSafeAreaInsets();
   // Phones: below the region code in the corner. Wide screens: at the top edge.
   const { width } = useWindowDimensions();
@@ -55,6 +58,11 @@ export function ReminderHost() {
       ...current.filter((r) => !due.some((d) => d.item.id === r.item.id)),
       ...due,
     ]);
+    // One sound for everything that came due together: a ring (repeated
+    // if an alarm is among them), else a soft note for missed ones.
+    const live = due.filter((d) => !d.missed);
+    const cue = live.length > 0 ? 'reminder' : 'notification';
+    const ownSound = willSound(cue);
     for (const { item, missed } of due) {
       const placed = placeIn(item, timeZone);
       const when = placed.time ? formatWallTime(placed.time) : 'Today';
@@ -62,10 +70,16 @@ export function ReminderHost() {
         item.title,
         `${missed ? 'Missed · ' : ''}${KIND_LABEL[item.kind]} · ${when}`,
         `formtime-${item.id}`,
+        ownSound,
       );
-      if (!missed) stops.current.set(item.id, playChime(item.kind === 'alarm' ? 6 : 1));
     }
-  }, [items, loaded, timeZone]);
+    if (live.length > 0) {
+      const stop = ring(live.some((d) => d.item.kind === 'alarm'));
+      for (const { item } of live) stops.current.set(item.id, stop);
+    } else {
+      notify();
+    }
+  }, [items, loaded, timeZone, ring, notify, willSound]);
 
   // Check now, then again at the next reminder (or within 30 s).
   useEffect(() => {

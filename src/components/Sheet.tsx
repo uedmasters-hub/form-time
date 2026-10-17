@@ -229,6 +229,7 @@ export function SheetSwitch({
   value,
   onChange,
   first = false,
+  accessory,
 }: {
   label: string;
   detail?: string;
@@ -236,6 +237,8 @@ export function SheetSwitch({
   onChange: (value: boolean) => void;
   /** Draws the top hairline (first row of a group). */
   first?: boolean;
+  /** A small control just before the switch (e.g. a preview button). */
+  accessory?: ReactNode;
 }) {
   const { uiTheme: ui } = useSettings();
   return (
@@ -245,10 +248,11 @@ export function SheetSwitch({
         { borderColor: ui.hairline, borderTopWidth: first ? StyleSheet.hairlineWidth : 0 },
       ]}
     >
-      <View style={styles.switchText}>
+      <View style={[styles.switchText, accessory ? styles.switchTextFill : null]}>
         <Text style={[styles.switchLabel, { color: ui.ink }]}>{label}</Text>
         {detail ? <Text style={[styles.switchDetail, { color: ui.muted }]}>{detail}</Text> : null}
       </View>
+      {accessory}
       {ui.flat ? (
         <FlatSwitch label={label} value={value} onChange={onChange} />
       ) : (
@@ -377,6 +381,10 @@ const styles = StyleSheet.create({
   },
   switchText: {
     flexShrink: 1,
+  },
+  /** With an accessory, the text takes the room so the controls sit together at the right. */
+  switchTextFill: {
+    flex: 1,
   },
   switchLabel: {
     fontSize: 14,

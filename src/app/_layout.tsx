@@ -7,6 +7,7 @@ import { AccountProvider } from '@/features/account/AccountProvider';
 import { EventsProvider } from '@/features/events/EventsProvider';
 import { GoogleSyncProvider } from '@/features/google/GoogleSyncProvider';
 import { SettingsProvider, useSettings } from '@/features/settings/SettingsProvider';
+import { SoundProvider } from '@/features/sound/SoundProvider';
 import { isDark } from '@/theme/color';
 
 /** Light status-bar content on night and dark dials, dark on light ones. */
@@ -23,15 +24,17 @@ export default function RootLayout() {
       {/* Account first: settings and items both follow who is signed in. */}
       <AccountProvider>
         <SettingsProvider>
-          <EventsProvider>
-            <GoogleSyncProvider>
-              <ThemedStatusBar />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="explore" />
-              </Stack>
-            </GoogleSyncProvider>
-          </EventsProvider>
+          <SoundProvider>
+            <EventsProvider>
+              <GoogleSyncProvider>
+                <ThemedStatusBar />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="explore" />
+                </Stack>
+              </GoogleSyncProvider>
+            </EventsProvider>
+          </SoundProvider>
         </SettingsProvider>
       </AccountProvider>
     </GestureHandlerRootView>

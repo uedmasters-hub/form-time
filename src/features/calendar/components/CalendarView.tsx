@@ -335,8 +335,6 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                         label={`Add to ${system.longDate(selected)}`}
                         hint="Event, meeting, note, follow-up or alarm"
                         onPress={addToSelected}
-                        restOpacity={0.8}
-                        touchRestOpacity={0.85}
                       />
                     </>
                   }

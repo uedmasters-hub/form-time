@@ -11,18 +11,17 @@ import {
 
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCanHover } from '@/hooks/use-can-hover';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+
+import { QUIET, quietOpacity, quietTransition, usePointerAwake, withAlpha } from './quiet-control';
 
 type QuietIconButtonProps = {
   icon: LucideIcon;
   label: string;
   onPress?: () => void;
-  /** Shown faintly and ignored (e.g. "Next month" at the end of a range). */
+  /** Shown very faintly and ignored (e.g. "Next month" at the end of a range). */
   disabled?: boolean;
   hint?: string;
-  /** Resting opacity where a pointer can hover. */
-  restOpacity?: number;
-  /** Resting opacity on touch screens, which can't hover to reveal it. */
-  touchRestOpacity?: number;
   iconSize?: number;
   style?: StyleProp<ViewStyle>;
 };
@@ -31,8 +30,12 @@ type QuietIconButtonProps = {
 const TARGET = 44;
 
 /**
- * An outline icon that stays in the background until it's wanted:
- * faint at rest, full strength on hover, press or keyboard focus.
+ * An outline icon that stays in the background until it's wanted, like the
+ * desktop app's full-screen ✕ (see quiet-control): barely there at rest,
+ * stronger for a moment while the pointer moves (and always a little
+ * stronger on touch screens), full strength on hover, press or keyboard
+ * focus — fading in quickly and back slowly. Pressed: a light ink tint and
+ * a slight press-in; keyboard focus: a thin ink ring.
  */
 export function QuietIconButton({
   icon: Icon,
@@ -40,13 +43,13 @@ export function QuietIconButton({
   onPress,
   disabled = false,
   hint,
-  restOpacity = 0.25,
-  touchRestOpacity = 0.4,
   iconSize = 20,
   style,
 }: QuietIconButtonProps) {
   const { uiTheme } = useSettings();
   const canHover = useCanHover();
+  const awake = usePointerAwake();
+  const reducedMotion = useReducedMotion();
   // Keyboard focus only (:focus-visible), so a mouse click doesn't leave a ring.
   const [focusVisible, setFocusVisible] = useState(false);
 
@@ -67,21 +70,17 @@ export function QuietIconButton({
       onFocus={onFocus}
       onBlur={() => setFocusVisible(false)}
       hitSlop={4}
-      style={({ hovered, pressed }) => [
-        styles.button,
-        {
-          opacity: disabled
-            ? 0.12
-            : hovered || pressed || focusVisible
-              ? 1
-              : canHover
-                ? restOpacity
-                : touchRestOpacity,
-        },
-        pressed && [styles.pressed, { backgroundColor: uiTheme.hover }],
-        focusVisible && { borderColor: uiTheme.accent },
-        style,
-      ]}
+      style={({ hovered, pressed }) => {
+        const state = { active: hovered || pressed || focusVisible, disabled, canHover, awake };
+        return [
+          styles.button,
+          { opacity: quietOpacity(state) },
+          quietTransition(state, reducedMotion),
+          pressed && [styles.pressed, { backgroundColor: withAlpha(uiTheme.ink, QUIET.tint) }],
+          focusVisible && { borderColor: uiTheme.ink },
+          style,
+        ];
+      }}
     >
       <Icon size={iconSize} color={uiTheme.ink} strokeWidth={1.5} />
     </Pressable>
@@ -95,10 +94,10 @@ const styles = StyleSheet.create({
     borderRadius: TARGET / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: QUIET.ring,
     borderColor: 'transparent',
   },
   pressed: {
-    transform: [{ scale: 0.94 }],
+    transform: [{ scale: QUIET.pressedScale }],
   },
 });

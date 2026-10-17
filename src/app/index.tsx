@@ -116,6 +116,7 @@ export default function Home() {
                 onSelect={onIndexChange}
                 activeColor={uiTheme.accent}
                 idleColor={uiTheme.hairline}
+                inkColor={uiTheme.ink}
               />
             </View>
           </View>

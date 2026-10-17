@@ -175,13 +175,7 @@ export function Sheet({
           <Text style={[styles.title, { color: ui.ink }]} accessibilityRole="header">
             {title}
           </Text>
-          <QuietIconButton
-            icon={X}
-            label={`Close ${title.toLowerCase()}`}
-            onPress={onClose}
-            restOpacity={0.6}
-            touchRestOpacity={0.75}
-          />
+          <QuietIconButton icon={X} label={`Close ${title.toLowerCase()}`} onPress={onClose} />
         </View>
         <ScrollView
           contentContainerStyle={styles.body}

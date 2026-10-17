@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
+import { ScrollRows } from '@/features/sidebar/components/ScrollRows';
+import { FESTIVAL_ROWS, SIDEBAR_ROW } from '@/features/sidebar/sidebar-layout';
 
 import type { CalendarDate } from '../calendar-date';
 import type { CalendarSystem } from '../calendar-system';
@@ -145,6 +147,7 @@ export function DayLists({
   theme,
   align = 'end',
   scale = 1,
+  visible = DAY_EVENT_ROWS,
   onOpenItem,
   aside,
 }: {
@@ -154,34 +157,54 @@ export function DayLists({
   theme: CalendarTheme;
   align?: 'start' | 'end';
   scale?: number;
+  /** Events shown before the list scrolls. */
+  visible?: number;
   onOpenItem?: (id: string) => void;
   /** Beside the "Events" heading (phones: Today, +). */
   aside?: ReactNode;
 }) {
+  const hidden = items.length - visible;
   return (
     <View style={styles.lists}>
-      <InfoHeading label="Events" theme={theme} align={align} scale={scale} aside={aside} />
+      <InfoHeading
+        label="Events"
+        theme={theme}
+        align={align}
+        scale={scale}
+        aside={
+          aside ??
+          (hidden > 0 ? (
+            <InfoAside text={`+${hidden} more`} theme={theme} scale={scale} />
+          ) : undefined)
+        }
+      />
       {items.length === 0 ? (
         <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale} />
       ) : (
-        items.map((item) => (
-          <InfoRow
-            key={item.id}
-            kind={`${item.kindLabel} · ${item.when}`}
-            title={item.title}
-            detail={item.place ? placeLabel(item.place) : undefined}
-            theme={theme}
-            align={align}
-            scale={scale}
-            bell={item.hasReminder}
-            titleLines={2}
-            onPress={() => onOpenItem?.(item.id)}
-            accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
-              item.place ? `, ${item.place}` : ''
-            }${item.hasReminder ? ', reminder set' : ''}`}
-            accessibilityHint="Opens it to edit or delete"
-          />
-        ))
+        <ScrollRows
+          visible={visible}
+          pageColor={theme.page}
+          align={align}
+          rowHeight={Math.round(SIDEBAR_ROW * scale)}
+        >
+          {items.map((item) => (
+            <InfoRow
+              key={item.id}
+              kind={`${item.kindLabel} · ${item.when}`}
+              title={item.title}
+              detail={item.place ? placeLabel(item.place) : undefined}
+              theme={theme}
+              align={align}
+              scale={scale}
+              bell={item.hasReminder}
+              onPress={() => onOpenItem?.(item.id)}
+              accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
+                item.place ? `, ${item.place}` : ''
+              }${item.hasReminder ? ', reminder set' : ''}`}
+              accessibilityHint="Opens it to edit or delete"
+            />
+          ))}
+        </ScrollRows>
       )}
 
       {holidays.length > 0 ? (
@@ -191,7 +214,8 @@ export function DayLists({
           theme={theme}
           align={align}
           scale={scale}
-          style={{ marginTop: 14 * scale }}
+          visible={FESTIVAL_ROWS}
+          style={{ marginTop: 8 * scale }}
         />
       ) : null}
     </View>
@@ -199,8 +223,9 @@ export function DayLists({
 }
 
 /**
- * "Holidays & festivals" and a day's observances, `limit` of them at most
- * (with "+N more" beside the heading). Shared by the calendar and the clock.
+ * "Holidays & festivals" and a day's observances, `visible` at a time (the
+ * rest scroll, with "+N more" beside the heading). Shared by the calendar
+ * and the clock.
  */
 export function HolidayList({
   holidays,
@@ -208,7 +233,7 @@ export function HolidayList({
   theme,
   align = 'end',
   scale = 1,
-  limit = Infinity,
+  visible = FESTIVAL_ROWS,
   style,
 }: {
   holidays: DayHoliday[];
@@ -216,11 +241,10 @@ export function HolidayList({
   theme: CalendarTheme;
   align?: 'start' | 'end';
   scale?: number;
-  limit?: number;
+  visible?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const shown = holidays.slice(0, limit);
-  const more = holidays.length - shown.length;
+  const hidden = holidays.length - visible;
   return (
     <View style={[styles.lists, style]}>
       <InfoHeading
@@ -229,28 +253,39 @@ export function HolidayList({
         align={align}
         scale={scale}
         aside={
-          more > 0 ? <InfoAside text={`+${more} more`} theme={theme} scale={scale} /> : undefined
+          hidden > 0 ? (
+            <InfoAside text={`+${hidden} more`} theme={theme} scale={scale} />
+          ) : undefined
         }
       />
-      {shown.map((h, i) => (
-        <InfoRow
-          key={`${h.name}-${i}`}
-          kind={kindLabels[h.kind]}
-          title={h.name}
-          detail={describe(h).replace(/^, /, '') || undefined}
-          theme={theme}
-          align={align}
-          scale={scale}
-          // Official holidays in the accent; observances stay quiet.
-          kindColor={h.kind === 'public' ? theme.accent : theme.muted}
-          markColor={h.kind === 'public' ? theme.accent : theme.muted}
-          titleLines={limit === Infinity ? 2 : 1}
-          accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
-        />
-      ))}
+      <ScrollRows
+        visible={visible}
+        pageColor={theme.page}
+        align={align}
+        rowHeight={Math.round(SIDEBAR_ROW * scale)}
+      >
+        {holidays.map((h, i) => (
+          <InfoRow
+            key={`${h.name}-${i}`}
+            kind={kindLabels[h.kind]}
+            title={h.name}
+            detail={describe(h).replace(/^, /, '') || undefined}
+            theme={theme}
+            align={align}
+            scale={scale}
+            // Official holidays in the accent; observances stay quiet.
+            kindColor={h.kind === 'public' ? theme.accent : theme.muted}
+            markColor={h.kind === 'public' ? theme.accent : theme.muted}
+            accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
+          />
+        ))}
+      </ScrollRows>
     </View>
   );
 }
+
+/** Events the calendar shows for a day before its list scrolls. */
+export const DAY_EVENT_ROWS = 3;
 
 /** A link shows as its host ("meet.google.com"); a place as written. */
 function placeLabel(place: string): string {

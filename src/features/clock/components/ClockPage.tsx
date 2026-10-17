@@ -45,25 +45,29 @@ export function ClockPage({ paused = false }: ClockPageProps) {
     setArea((a) => (a.width === width && a.height === height ? a : { width, height }));
   };
 
-  // The side panel (today, what's next, festivals) has its place on both
-  // faces; the clock takes the space it leaves.
+  // The clock is centred in `main`, which the side panel never changes; the
+  // panel (today, what's next, festivals) floats beside it. The digital face
+  // shows one upcoming item at a time, the analog up to three (two on
+  // phones, or one where the dial would otherwise get too small).
+  const digital = settings.face === 'digital';
   const panel = { showDate: settings.showDayDate, showEvents: settings.showDayEvents };
-  let layout = sidebarLayout(area.width, area.height, panel);
-  const dialIn = (l: SidebarLayout) =>
-    clockSizeFor(
-      area.width - l.main.left - l.main.right,
-      area.height - l.main.top - l.main.bottom,
-      'classic',
-    );
-  // Phones: the dial needs a square. The list gives up rows (down to one)
-  // until the dial is at least MIN_PHONE_DIAL of the width.
-  if (settings.face === 'analog' && !layout.wide) {
-    const wanted = (area.width - layout.side * 2) * MIN_PHONE_DIAL;
-    while (layout.rows > 1 && dialIn(layout) < wanted) {
-      layout = sidebarLayout(area.width, area.height, { ...panel, maxRows: layout.rows - 1 });
+  let layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: digital ? 1 : 3 });
+  if (!digital && !layout.wide) {
+    const dialIn = (l: SidebarLayout) =>
+      clockSizeFor(
+        area.width - l.main.left - l.main.right,
+        area.height - l.main.top - l.main.bottom,
+        'classic',
+      );
+    layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: 2 });
+    if (dialIn(layout) < (area.width - layout.side * 2) * MIN_PHONE_DIAL) {
+      layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: 1 });
     }
   }
   const { main } = layout;
+  // The digital time reports its width once laid out; until then, assume it
+  // fills its area, so the panel starts out clear of it.
+  const [timeWidth, setTimeWidth] = useState(0);
   const size =
     area.width > 0
       ? clockSizeFor(
@@ -92,9 +96,16 @@ export function ClockPage({ paused = false }: ClockPageProps) {
               const { date, time } = nextSlot(Date.now(), timeZone);
               compose({ mode: 'new', date, time });
             }}
+            onTimeWidth={(w) => setTimeWidth((t) => (Math.abs(t - w) < 1 ? t : w))}
           />
         ) : null}
-        {area.width > 0 ? <TodaySidebar layout={layout} paused={paused} /> : null}
+        {area.width > 0 ? (
+          <TodaySidebar
+            layout={layout}
+            contentWidth={timeWidth || area.width - main.left - main.right}
+            paused={paused}
+          />
+        ) : null}
       </View>
     );
   }
@@ -117,7 +128,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
           </ClockTimePicker>
         </View>
       ) : null}
-      {area.width > 0 ? <TodaySidebar layout={layout} paused={paused} /> : null}
+      {area.width > 0 ? <TodaySidebar layout={layout} contentWidth={size} paused={paused} /> : null}
     </View>
   );
 }

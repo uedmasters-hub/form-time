@@ -14,8 +14,9 @@ import {
 } from '@/features/calendar/components/InfoList';
 import { holidaysByDay, kindLabels } from '@/features/holidays/holidays';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { ScrollRows } from '@/features/sidebar/components/ScrollRows';
 import { Sidebar } from '@/features/sidebar/components/Sidebar';
-import type { SidebarLayout } from '@/features/sidebar/sidebar-layout';
+import { FESTIVAL_ROWS, type SidebarLayout } from '@/features/sidebar/sidebar-layout';
 import { useMinute } from '@/features/sidebar/use-minute';
 
 import { useComposer } from '../ComposerProvider';
@@ -30,13 +31,23 @@ import { upNext, type Upcoming } from '../up-next';
  * what's coming up, soonest first, then today's holidays and festivals.
  * Placed by `sidebarLayout`, so the clock beside it never moves.
  */
-export function TodaySidebar({ layout, paused }: { layout: SidebarLayout; paused: boolean }) {
+export function TodaySidebar({
+  layout,
+  contentWidth,
+  paused,
+}: {
+  layout: SidebarLayout;
+  /** The dial's or the time's width, so the panel keeps clear of it. */
+  contentWidth: number;
+  paused: boolean;
+}) {
   const now = useMinute(paused);
   return (
     <Sidebar
       layout={layout}
+      contentWidth={contentWidth}
       date={<WatchDate now={now} numeralHeight={layout.dateNumeral} />}
-      list={<WatchUpcoming now={now} limit={layout.rows} />}
+      list={<WatchUpcoming now={now} visible={layout.eventRows} />}
     />
   );
 }
@@ -66,10 +77,10 @@ export function WatchDate({ now, numeralHeight }: { now: Date; numeralHeight: nu
 }
 
 /**
- * "Up next" and today's "Holidays & festivals", in `limit` rows' space
- * (the layout reserves room for both headings).
+ * "Up next", `visible` rows at a time (the rest scroll), then today's
+ * "Holidays & festivals", one at a time.
  */
-export function WatchUpcoming({ now, limit }: { now: Date; limit: number }) {
+export function WatchUpcoming({ now, visible }: { now: Date; visible: number }) {
   const { uiTheme: ui, timeZone, settings } = useSettings();
   const { items } = useEvents();
   const { compose } = useComposer();
@@ -90,15 +101,11 @@ export function WatchUpcoming({ now, limit }: { now: Date; limit: number }) {
       }).get(toISODate(today)) ?? []
     );
   }, [year, month, day, region, area, showPublicHolidays, showRestrictedHolidays, showFestivals]);
-  // The layout keeps room for a second heading; a festival takes one row of
-  // `limit` (two when there's plenty), and up next keeps the rest.
-  const festivalRows =
-    holidays.length === 0 || limit < 2 ? 0 : limit >= 4 ? Math.min(2, holidays.length) : 1;
-  const upNextRows = limit - festivalRows;
   const next = useMemo(
-    () => upNext(items, minute * 60_000, timeZone, { limit: upNextRows, hour12 }),
-    [items, minute, timeZone, hour12, upNextRows],
+    () => upNext(items, minute * 60_000, timeZone, { limit: MAX_UPCOMING, hour12 }),
+    [items, minute, timeZone, hour12],
   );
+  const hidden = next.rows.length - visible + next.more;
 
   const addNew = () => {
     const { date, time } = nextSlot(Date.now(), timeZone);
@@ -110,7 +117,7 @@ export function WatchUpcoming({ now, limit }: { now: Date; limit: number }) {
       <InfoHeading
         label="Up next"
         theme={ui}
-        aside={next.more > 0 ? <InfoAside text={`+${next.more} more`} theme={ui} /> : undefined}
+        aside={hidden > 0 ? <InfoAside text={`+${hidden} more`} theme={ui} /> : undefined}
       />
 
       {next.rows.length === 0 ? (
@@ -118,27 +125,32 @@ export function WatchUpcoming({ now, limit }: { now: Date; limit: number }) {
           <TextButton label="+ Add" tone="accent" onPress={addNew} a11yLabel="Add something" />
         </InfoEmpty>
       ) : (
-        next.rows.map((row) => (
-          <Row
-            key={row.item.id}
-            row={row}
-            onPress={() => compose({ mode: 'edit', item: row.item })}
-          />
-        ))
+        <ScrollRows visible={visible} pageColor={ui.page}>
+          {next.rows.map((row) => (
+            <Row
+              key={row.item.id}
+              row={row}
+              onPress={() => compose({ mode: 'edit', item: row.item })}
+            />
+          ))}
+        </ScrollRows>
       )}
 
-      {festivalRows > 0 ? (
+      {holidays.length > 0 ? (
         <HolidayList
           holidays={holidays}
           kindLabels={kindLabels(region, area)}
           theme={ui}
-          limit={festivalRows}
+          visible={FESTIVAL_ROWS}
           style={styles.festivals}
         />
       ) : null}
     </View>
   );
 }
+
+/** Most upcoming items listed (the rest are counted in "+N more"). */
+const MAX_UPCOMING = 30;
 
 /** One item, set like the calendar's day panel: "■ MEETING · 10:00 AM", then the title. */
 function Row({ row, onPress }: { row: Upcoming; onPress: () => void }) {

@@ -27,6 +27,8 @@ type DigitalClockProps = {
   paused: boolean;
   /** Pressing the time (e.g. to add something). */
   onPressTime?: () => void;
+  /** The time's width as laid out, so the side panel can keep clear of it. */
+  onTimeWidth?: (width: number) => void;
 };
 
 const ZERO: WallTimeParts = { hours: 0, minutes: 0, seconds: 0 };
@@ -61,6 +63,7 @@ export function DigitalClock({
   flat,
   paused,
   onPressTime,
+  onTimeWidth,
 }: DigitalClockProps) {
   const now = useClockTime('quartz', paused);
   const time = wallTime(now, timeZone);
@@ -124,7 +127,7 @@ export function DigitalClock({
   }).format(now);
 
   const face = (
-    <View style={styles.timeRow}>
+    <View style={styles.timeRow} onLayout={(e) => onTimeWidth?.(e.nativeEvent.layout.width)}>
       {main}
       {/* Fixed width: AM/PM level with the digits' tops, seconds on their baseline. */}
       <View

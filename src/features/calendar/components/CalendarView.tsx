@@ -203,11 +203,9 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
     compose({ mode: 'new', date: selected, time });
   };
 
-  // Wide: the side panel (the same one the clock has) sits at the right
-  // edge and the grid is centred in the space it leaves, like the clock's
-  // dial; hiding one half of the panel doesn't move it. With the whole panel
-  // off, the grid is centred on the page. Solve for the cell size that fills
-  // the height, or the width, first.
+  // Wide: the grid is centred on the page in `main`, which the side panel
+  // (the same one the clock has) never changes; the panel floats beside it.
+  // Solve for the cell size that fills the height, or the width, first.
   const panel = sidebarLayout(area.width, area.height, {
     showDate: settings.showDayDate,
     showEvents: settings.showDayEvents,
@@ -352,8 +350,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
       {area.width > 0 && wide ? (
         <Sidebar
           layout={panel}
-          scrollList
-          pageColor={theme.page}
+          contentWidth={cellSize * 7}
           date={
             <View
               accessible
@@ -378,6 +375,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               holidays={selectedHolidays}
               kindLabels={kindLabels}
               theme={theme}
+              visible={panel.eventRows}
               onOpenItem={openItem}
             />
           }

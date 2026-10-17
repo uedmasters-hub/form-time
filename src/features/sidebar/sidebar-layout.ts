@@ -1,48 +1,50 @@
 /**
  * The side panel's geometry, shared by the analog clock, the digital clock
- * and the calendar so the panel sits in exactly the same place on every
- * page. Wide screens: a column at the right edge, the date at its top and
- * the day's events and festivals at its foot. Narrow screens: the date
- * across the top and the list across the foot. Whatever the page shows (a
- * dial, the time, a month) goes in `main`, the space that's left.
+ * and the calendar. The page's own content (a dial, the time, a month) is
+ * centred in `main`, which never depends on the panel: showing or hiding
+ * it moves and resizes nothing. Wide screens: `main` is centred on the
+ * page, and the panel floats in the space beside it, the date at the top
+ * right and the day's events and festivals at the bottom right, as wide as
+ * its content needs. Narrow screens: the date across the top and the list
+ * across the foot, in bands that are always kept.
  */
 
 /** Bands kept clear for the corner controls (region code, settings, switch). */
 export const SIDEBAR_TOP = 72;
 export const SIDEBAR_BOTTOM = 76;
-/** Wide layouts: the page's content on the left, the panel on the right. */
+/** Wide layouts: the content in the middle, the panel floating at the right. */
 const WIDE_MIN_WIDTH = 720;
-export const SIDEBAR_GAP = 64;
-/** Space the list reserves per row and per heading. */
+/** Least space between the content and the panel. */
+export const SIDEBAR_GAP = 40;
+/** One list row (meta line, title, place), and one list heading. */
 export const SIDEBAR_ROW = 66;
 export const SIDEBAR_HEADING = 32;
+/** Least room the panel's text needs beside the content (wide). */
+const PANEL_MIN = 180;
 /** Breathing room between the date and the list (wide) or the content (narrow). */
 const DATE_GAP = 40;
 const NARROW_GAP = 16;
-/** Wide, with the panel off: the content keeps this share of the width clear at each side. */
+/** Wide: the content keeps at least this share of the width clear at each side. */
 const OPEN_MARGIN = 0.08;
+/** Festivals show one row at a time; the rest scroll. */
+export const FESTIVAL_ROWS = 1;
 
 export type Insets = { left: number; right: number; top: number; bottom: number };
 
 export type SidebarLayout = {
+  /** The page. */
+  width: number;
+  height: number;
   wide: boolean;
   /** Distance from the page's left and right edges. */
   side: number;
-  /** The panel's width. */
-  column: number;
   /** The date's large numeral. */
   dateNumeral: number;
-  /** Space the date takes; 0 when it's hidden. */
-  dateHeight: number;
-  /** List rows that fit (each SIDEBAR_ROW tall), below its headings. */
-  rows: number;
-  /** Space the list takes; 0 when it's hidden. */
-  listHeight: number;
-  /** The most the list may grow to (wide), before it scrolls. */
-  listMax: number;
+  /** Events shown before the list scrolls. */
+  eventRows: number;
   showDate: boolean;
   showEvents: boolean;
-  /** Where the page's own content goes, as insets from the page's edges. */
+  /** Where the page's own content is centred, as insets from the page's edges. */
   main: Insets;
 };
 
@@ -53,8 +55,10 @@ export function dateBlockHeight(numeral: number) {
   return 16 + 14 + numeral + stroke * 2 + 12 + 21 + 21;
 }
 
-/** Room for the list's headings: "Up next" / "Events", and "Holidays & festivals". */
-const HEADINGS = SIDEBAR_HEADING * 2;
+/** Height of the list: two headings, the events' rows and one festival row. */
+function listBlockHeight(eventRows: number) {
+  return SIDEBAR_HEADING * 2 + (eventRows + FESTIVAL_ROWS) * SIDEBAR_ROW;
+}
 
 export function sidebarLayout(
   width: number,
@@ -62,67 +66,58 @@ export function sidebarLayout(
   {
     showDate = true,
     showEvents = true,
-    maxRows = 4,
+    eventRows = 3,
   }: {
     showDate?: boolean;
     showEvents?: boolean;
-    /** Fewer list rows, to leave more room for what the page shows (narrow). */
-    maxRows?: number;
+    /** Events to show before scrolling (fewer when the screen is short). */
+    eventRows?: number;
   } = {},
 ): SidebarLayout {
   const wide = width >= WIDE_MIN_WIDTH && width >= height * 1.15;
   const side = wide ? 48 : 20;
-  const column = wide ? Math.round(Math.min(320, Math.max(240, width * 0.24))) : width - side * 2;
   const dateNumeral = wide ? 56 : 40;
-  const dateHeight = showDate ? dateBlockHeight(dateNumeral) : 0;
-  const rows = Math.max(
-    1,
-    Math.min(
-      maxRows,
-      wide
-        ? Math.floor(
-            (height - SIDEBAR_TOP - SIDEBAR_BOTTOM - dateHeight - DATE_GAP - HEADINGS) /
-              SIDEBAR_ROW,
-          )
-        : height < 700
-          ? 2
-          : 3,
-    ),
-  );
-  const listHeight = showEvents ? HEADINGS + rows * SIDEBAR_ROW : 0;
-  const listMax = Math.max(
-    listHeight,
-    height - SIDEBAR_TOP - SIDEBAR_BOTTOM - dateHeight - (showDate ? DATE_GAP : 0),
-  );
-  const shown = showDate || showEvents;
-  // With the panel off, the content is centred on the page with real margins.
-  const open = Math.max(side, Math.round(width * OPEN_MARGIN));
+  const dateHeight = dateBlockHeight(dateNumeral);
 
-  const main: Insets = wide
-    ? {
-        left: shown ? side : open,
-        right: shown ? side + column + SIDEBAR_GAP : open,
-        top: SIDEBAR_TOP,
-        bottom: SIDEBAR_BOTTOM,
-      }
-    : {
-        left: side,
-        right: side,
-        top: SIDEBAR_TOP + (showDate ? dateHeight + NARROW_GAP : 0),
-        bottom: SIDEBAR_BOTTOM + (showEvents ? listHeight + NARROW_GAP : 0),
-      };
+  // Short wide screens: fewer rows, so the list never reaches the date.
+  const room = height - SIDEBAR_TOP - SIDEBAR_BOTTOM - dateHeight - DATE_GAP;
+  const fit = Math.floor((room - listBlockHeight(0)) / SIDEBAR_ROW);
+  const rows = Math.max(1, wide ? Math.min(eventRows, fit) : eventRows);
+
+  // Neither depends on showDate / showEvents, so the content never moves.
+  let main: Insets;
+  if (wide) {
+    const reach = Math.max(side + PANEL_MIN + SIDEBAR_GAP, Math.round(width * OPEN_MARGIN));
+    main = { left: reach, right: reach, top: SIDEBAR_TOP, bottom: SIDEBAR_BOTTOM };
+  } else {
+    main = {
+      left: side,
+      right: side,
+      top: SIDEBAR_TOP + dateHeight + NARROW_GAP,
+      bottom: SIDEBAR_BOTTOM + listBlockHeight(rows) + NARROW_GAP,
+    };
+  }
 
   return {
+    width,
+    height,
     wide,
     side,
-    column,
     dateNumeral,
-    dateHeight,
-    rows,
-    listHeight,
-    listMax,
+    eventRows: rows,
     showDate,
     showEvents,
     main,
   };
+}
+
+/**
+ * The most the panel may widen to without coming nearer the content than
+ * SIDEBAR_GAP, for content this wide (centred in `main`). Narrow: the page
+ * width less its sides.
+ */
+export function panelMaxWidth(layout: SidebarLayout, contentWidth: number) {
+  if (!layout.wide) return layout.width - layout.side * 2;
+  const beside = (layout.width - contentWidth) / 2 - SIDEBAR_GAP - layout.side;
+  return Math.max(PANEL_MIN, Math.floor(beside));
 }

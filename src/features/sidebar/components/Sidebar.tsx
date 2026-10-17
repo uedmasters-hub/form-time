@@ -1,86 +1,42 @@
-import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { BottomFade } from '@/features/pager/BottomFade';
-import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
-
-import { SIDEBAR_BOTTOM, SIDEBAR_TOP, type SidebarLayout } from '../sidebar-layout';
+import { SIDEBAR_BOTTOM, SIDEBAR_TOP, panelMaxWidth, type SidebarLayout } from '../sidebar-layout';
 
 /**
- * The side panel, placed by `sidebarLayout`: `date` at the top right and
- * `list` at the bottom right, flush with the page's right edge. Lay it over
- * the page; the page keeps its own content inside `layout.main`.
+ * The side panel, floated over the page: `date` at the top right and `list`
+ * at the bottom right. Each is only as wide as its content, up to the
+ * space beside the page's content (`contentWidth`, centred in
+ * `layout.main`), so it never crowds or moves what the page shows.
  */
 export function Sidebar({
   layout,
+  contentWidth,
   date,
   list,
-  scrollList = false,
-  pageColor,
 }: {
   layout: SidebarLayout;
+  /** How wide the page's content actually is (a dial, the time, a month). */
+  contentWidth: number;
   date?: ReactNode;
   list?: ReactNode;
-  /** Let a long list scroll in the space it has (wide), instead of sizing it to fit. */
-  scrollList?: boolean;
-  /** The page colour, for the fade that shows there's more below. */
-  pageColor?: string;
 }) {
-  const box = { right: layout.side, width: layout.column };
-  // A long list fades out at the foot while there's more below to scroll to.
-  const [scroll, setScroll] = useState({ box: 0, content: 0, offset: 0 });
-  const more = scroll.content - scroll.offset - scroll.box > 2;
+  const box = layout.wide
+    ? { right: layout.side, maxWidth: panelMaxWidth(layout, contentWidth) }
+    : { right: layout.side, left: layout.side };
   return (
     <>
       {layout.showDate && date ? (
         <View style={[styles.corner, box, { top: SIDEBAR_TOP }]}>{date}</View>
       ) : null}
       {layout.showEvents && list ? (
-        <View
-          style={[
-            styles.corner,
-            box,
-            { bottom: SIDEBAR_BOTTOM },
-            scrollList && { maxHeight: layout.listMax },
-          ]}
-        >
-          {scrollList ? (
-            <>
-              <ScrollView
-                style={[swipeFriendlyScroll, styles.bleed]}
-                contentContainerStyle={styles.scrolled}
-                showsVerticalScrollIndicator={false}
-                scrollEventThrottle={32}
-                onLayout={(e) => {
-                  const h = e.nativeEvent.layout.height;
-                  setScroll((s) => (s.box === h ? s : { ...s, box: h }));
-                }}
-                onContentSizeChange={(_, h) =>
-                  setScroll((s) => (s.content === h ? s : { ...s, content: h }))
-                }
-                onScroll={(e) => {
-                  const y = e.nativeEvent.contentOffset.y;
-                  setScroll((s) => (s.offset === y ? s : { ...s, offset: y }));
-                }}
-              >
-                {list}
-              </ScrollView>
-              {more && pageColor ? (
-                <BottomFade height={36} color={pageColor} id="ft-sidebar-fade" />
-              ) : null}
-            </>
-          ) : (
-            list
-          )}
-        </View>
+        <View style={[styles.corner, box, { bottom: SIDEBAR_BOTTOM }]}>{list}</View>
       ) : null}
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  corner: { position: 'absolute' },
-  // Room for the rows' hover wash, which reaches 8 pt past the text.
-  bleed: { marginHorizontal: -8 },
-  scrolled: { paddingHorizontal: 8 },
+  // Wide: no width of its own, so it takes its content's.
+  corner: { position: 'absolute', alignItems: 'flex-end' },
 });

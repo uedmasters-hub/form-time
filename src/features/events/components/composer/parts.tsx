@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { PrimaryButton } from '@/components/Buttons';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
@@ -170,34 +171,7 @@ export function ChoiceChips<T extends string | number | null>({
   );
 }
 
-/** A quiet text button ("Next", "Done", "+ Notes"). */
-export function TextButton({
-  label,
-  onPress,
-  a11yLabel,
-  tone = 'ink',
-}: {
-  label: string;
-  onPress: () => void;
-  a11yLabel?: string;
-  tone?: 'ink' | 'accent' | 'muted';
-}) {
-  const { uiTheme: ui } = useSettings();
-  const color = tone === 'accent' ? ui.accent : tone === 'muted' ? ui.muted : ui.ink;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel ?? label}
-      onPress={onPress}
-      style={({ hovered, pressed }) => [
-        styles.textButton,
-        { backgroundColor: hovered || pressed ? ui.hover : 'transparent' },
-      ]}
-    >
-      <Text style={[styles.textButtonText, { color }]}>{label}</Text>
-    </Pressable>
-  );
-}
+export { TextButton } from '@/components/Buttons';
 
 /** The one strong action on the page. Faint until there's something to save. */
 export function SaveButton({
@@ -209,21 +183,7 @@ export function SaveButton({
   ready: boolean;
   onPress: () => void;
 }) {
-  const { uiTheme: ui } = useSettings();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.save,
-        { backgroundColor: ui.ink, opacity: ready ? (pressed ? 0.85 : 1) : 0.35 },
-        pressed && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.saveText, { color: ui.surface }]}>{label}</Text>
-    </Pressable>
-  );
+  return <PrimaryButton label={label} dim={!ready} onPress={onPress} />;
 }
 
 /** Small squares, one per step; finished ones are filled. */
@@ -301,21 +261,6 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13 },
   pressed: { transform: [{ scale: 0.97 }] },
-  textButton: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    justifyContent: 'center',
-  },
-  textButtonText: { fontSize: 13, fontWeight: '500' },
-  save: {
-    minHeight: 44,
-    paddingHorizontal: 22,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveText: { fontSize: 15, fontWeight: '500', letterSpacing: 0.2 },
   progress: { flexDirection: 'row', gap: 5, alignItems: 'center' },
   pip: { width: 7, height: 7, borderWidth: 1 },
 });

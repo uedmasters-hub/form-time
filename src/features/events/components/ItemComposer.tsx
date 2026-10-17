@@ -315,12 +315,15 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
     if (Platform.OS !== 'web' || !open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        // Caught on the way down (capture), before a text field takes Enter
+        // as "next step" and stops it.
         e.preventDefault();
+        e.stopPropagation();
         void submitRef.current();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [open]);
 
   // The last draft stays rendered while the sheet animates closed.

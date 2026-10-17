@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
+import { AccountSheet } from '@/features/account/components/AccountSheet';
 import { ComposerProvider } from '@/features/events/ComposerProvider';
 import { ReminderHost } from '@/features/events/components/ReminderHost';
 import { ClockPage } from '@/features/clock/components/ClockPage';
@@ -97,6 +98,7 @@ export default function Home() {
           <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
           <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
           <ReminderHost />
+          <AccountSheet />
         </View>
       </ComposerProvider>
     </PagerGestureProvider>

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { readJSON, writeJSON } from '@/lib/device-storage';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
 import { useEvents } from '../EventsProvider';
 import { formatWallTime, placeIn } from '../item-time';
 import { playChime, showSystemNotification } from '../notifications';
+import { readFired, writeFired } from '../reminder-state';
 import { KIND_LABEL, type CalendarItem } from '../types';
 
 /**
@@ -16,7 +16,6 @@ import { KIND_LABEL, type CalendarItem } from '../types';
  * for alarms. Reminders that came due while the app was closed (within the
  * last 12 hours) show as missed when it opens; older ones are let go.
  */
-const FIRED_KEY = 'formtime.fired.v1';
 const CATCH_UP_MS = 12 * 3600_000;
 const LATE_MS = 2 * 60_000;
 const SNOOZE_MS = 5 * 60_000;
@@ -36,12 +35,10 @@ export function ReminderHost() {
   const stops = useRef(new Map<string, () => void>());
   const [tick, setTick] = useState(0);
 
-  useEffect(() => {
-    fired.current = readJSON<Record<string, string>>(FIRED_KEY) ?? {};
-  }, []);
-
   const check = useCallback(() => {
     if (!loaded) return;
+    // Re-read: items joining an account carry their rung reminders across.
+    fired.current = readFired();
     const now = Date.now();
     const due: Ringing[] = [];
     for (const item of items) {
@@ -53,7 +50,7 @@ export function ReminderHost() {
       due.push({ item, missed: now - at > LATE_MS });
     }
     if (due.length === 0) return;
-    writeJSON(FIRED_KEY, fired.current);
+    writeFired(fired.current);
     setRinging((current) => [
       ...current.filter((r) => !due.some((d) => d.item.id === r.item.id)),
       ...due,

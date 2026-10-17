@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AccountProvider } from '@/features/account/AccountProvider';
 import { EventsProvider } from '@/features/events/EventsProvider';
 import { SettingsProvider, useSettings } from '@/features/settings/SettingsProvider';
 import { isDark } from '@/theme/color';
@@ -18,15 +19,18 @@ export default function RootLayout() {
   return (
     // Required by react-native-gesture-handler for the Clock ↔ Calendar swipe.
     <GestureHandlerRootView style={styles.root}>
-      <SettingsProvider>
-        <EventsProvider>
-          <ThemedStatusBar />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="explore" />
-          </Stack>
-        </EventsProvider>
-      </SettingsProvider>
+      {/* Account first: settings and items both follow who is signed in. */}
+      <AccountProvider>
+        <SettingsProvider>
+          <EventsProvider>
+            <ThemedStatusBar />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="explore" />
+            </Stack>
+          </EventsProvider>
+        </SettingsProvider>
+      </AccountProvider>
     </GestureHandlerRootView>
   );
 }

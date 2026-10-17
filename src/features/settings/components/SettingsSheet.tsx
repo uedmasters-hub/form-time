@@ -1,4 +1,4 @@
-import { Moon, RefreshCw, RotateCcw, Sun, SunMoon } from 'lucide-react-native';
+import { Moon, RotateCcw, Sun, SunMoon } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Sheet, SheetSection as Section, SheetSwitch } from '@/components/Sheet';
@@ -9,7 +9,8 @@ import {
   lumeSpec,
   nightDialTheme,
 } from '@/features/clock/dial-palettes';
-import { useEvents, type SyncStatus } from '@/features/events/EventsProvider';
+import { useAccount } from '@/features/account/AccountProvider';
+import { AccountSection } from '@/features/account/components/AccountSection';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 import { APPEARANCES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
@@ -33,8 +34,7 @@ const APPEARANCE_ICONS = { day: Sun, night: Moon, system: SunMoon } as const;
  */
 export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { settings, update, reset, uiTheme: ui } = useSettings();
-  const { items, status, syncNow } = useEvents();
-  const canSync = status.state !== 'device-only' && status.state !== 'syncing';
+  const { openSheet } = useAccount();
   const reducedMotion = useReducedMotion();
 
   const showDials = settings.appearance !== 'night';
@@ -43,6 +43,13 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Settings" anchor="bottom-left">
+      <AccountSection
+        onOpen={(sheet) => {
+          onClose();
+          openSheet(sheet);
+        }}
+      />
+
       <Section label="Appearance">
         <OptionGroup
           label="Appearance"
@@ -151,36 +158,6 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         />
       </Section>
 
-      <Section
-        label="Your items"
-        aside={`${items.length} ${items.length === 1 ? 'item' : 'items'}`}
-      >
-        <View style={styles.syncRow}>
-          <Text
-            style={[styles.syncText, { color: status.state === 'problem' ? ui.ink : ui.muted }]}
-            aria-live="polite"
-          >
-            {describeSync(status)}
-          </Text>
-          {canSync ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={syncNow}
-              style={({ hovered, pressed }) => [
-                styles.syncButton,
-                {
-                  borderColor: ui.hairline,
-                  backgroundColor: hovered || pressed ? ui.hover : 'transparent',
-                },
-              ]}
-            >
-              <RefreshCw size={13} color={ui.ink} strokeWidth={1.75} />
-              <Text style={[styles.syncButtonText, { color: ui.ink }]}>Sync now</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </Section>
-
       <Pressable
         accessibilityRole="button"
         onPress={reset}
@@ -193,47 +170,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   );
 }
 
-function describeSync(status: SyncStatus): string {
-  switch (status.state) {
-    case 'idle':
-      return 'Saved on this device';
-    case 'syncing':
-      return 'Syncing…';
-    case 'synced':
-      return `Synced at ${new Date(status.at).toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-      })}`;
-    case 'device-only':
-      return status.reason;
-    case 'problem':
-      return status.unsent > 0 ? `${status.message} (${status.unsent} waiting)` : status.message;
-  }
-}
-
 const styles = StyleSheet.create({
-  syncRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  syncText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  syncButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  syncButtonText: {
-    fontSize: 13,
-  },
   switchGap: {
     marginTop: 18,
   },

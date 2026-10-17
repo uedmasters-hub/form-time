@@ -1,5 +1,5 @@
 import { X } from 'lucide-react-native';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Modal,
   Pressable,
@@ -72,8 +72,15 @@ export function Sheet({
   // Stay mounted through the closing animation.
   const [mounted, setMounted] = useState(visible);
   const progress = useSharedValue(0);
+  // The close animation reports back asynchronously; by then the sheet may
+  // have been opened again (e.g. opened right after mounting), so check.
+  const visibleNow = useRef(visible);
+  const finishClose = useCallback(() => {
+    if (!visibleNow.current) setMounted(false);
+  }, []);
 
   useEffect(() => {
+    visibleNow.current = visible;
     if (visible) {
       setMounted(true);
       progress.set(reducedMotion ? 1 : withTiming(1, { duration: OPEN_MS, easing: EASE }));
@@ -83,11 +90,11 @@ export function Sheet({
     } else {
       progress.set(
         withTiming(0, { duration: CLOSE_MS, easing: Easing.in(Easing.quad) }, (finished) => {
-          if (finished) scheduleOnRN(setMounted, false);
+          if (finished) scheduleOnRN(finishClose);
         }),
       );
     }
-  }, [visible, reducedMotion, progress]);
+  }, [visible, reducedMotion, progress, finishClose]);
 
   const fromTop = wide && anchor === 'top-right';
   const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.get() }));

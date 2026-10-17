@@ -10,22 +10,18 @@ import {
 } from 'react';
 import { AppState, Platform } from 'react-native';
 
-import { hasDeviceStorage, readJSON, writeJSON } from '@/lib/device-storage';
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/features/sync/config';
-import {
-  createSupabaseRest,
-  SyncError,
-  type Session,
-  type SupabaseRest,
-  type SyncProblem,
-} from '@/features/sync/supabase-rest';
+import { useAccount } from '@/features/account/AccountProvider';
+import { readJSON, writeJSON } from '@/lib/device-storage';
+import { SyncError, type SyncProblem } from '@/features/sync/supabase-rest';
 
+import { newId } from './item-time';
+import { carryReminders } from './reminder-state';
 import { syncRound } from './sync';
 import type { CalendarItem } from './types';
 
 /**
- * The user's items, kept on this device first and synced to Supabase in the
- * background. Saving never waits for the network: a change is stored here,
+ * The user's items, kept on this device first and, when signed in, synced
+ * to their Supabase account in the background. Saving never waits for the network: a change is stored here,
  * marked unsent, and pushed on the next sync round (after a change, on
  * reconnect, when the app comes back to the foreground, and every few
  * minutes). The sync status says plainly where things stand.
@@ -45,14 +41,21 @@ type EventsContextValue = {
   save: (item: CalendarItem) => void;
   remove: (id: string) => void;
   syncNow: () => void;
+  /** Syncs now and resolves with how many changes still haven't reached the account. */
+  flush: () => Promise<number>;
+  /** Changes not yet in the account. */
+  unsent: number;
 };
 
 const ITEMS_KEY = 'formtime.items.v1';
-const SESSION_KEY = 'formtime.session.v1';
 const PERIODIC_MS = 5 * 60_000;
 const DEBOUNCE_MS = 600;
 
-type Stored = { items: CalendarItem[]; dirty: string[] };
+/**
+ * `owner`: the account these items belong to, or null for items made while
+ * signed out. Another account's items never show here.
+ */
+type Stored = { owner?: string | null; items: CalendarItem[]; dirty: string[] };
 
 const EventsContext = createContext<EventsContextValue | null>(null);
 
@@ -62,41 +65,43 @@ export function useEvents(): EventsContextValue {
   return value;
 }
 
-function makeClient(): SupabaseRest | null {
-  // Without device storage the anonymous identity would change every launch
-  // and earlier items would be unreachable — so sync only where it persists.
-  if (!hasDeviceStorage() || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return null;
-  return createSupabaseRest(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    load: () => readJSON<Session>(SESSION_KEY),
-    save: (session) => writeJSON(SESSION_KEY, session),
-  });
-}
-
 const PROBLEM_TEXT: Record<SyncProblem, string> = {
   offline: 'Offline — saved on this device; will sync when you’re back online',
-  'auth-disabled': 'Saved on this device — turn on anonymous sign-ins in Supabase to sync',
-  'table-missing': 'Saved on this device — run the calendar_items migrations in Supabase to sync',
-  unauthorized: 'Saved on this device — the sync session was refused',
+  'table-missing': 'Saved on this device — run the Supabase migrations to sync',
+  unauthorized: 'Your session ended — sign in again to sync',
   server: 'Saved on this device — the server reported a problem',
+};
+
+const SIGNED_OUT: SyncStatus = {
+  state: 'device-only',
+  reason: 'On this device only — sign in to keep them in your account',
 };
 
 export function EventsProvider({ children }: { children: ReactNode }) {
   const [all, setAll] = useState<CalendarItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<SyncStatus>({ state: 'idle' });
+  const [unsent, setUnsent] = useState(0);
+  const { state: account, rest, keepDeviceItems } = useAccount();
 
   const allRef = useRef<CalendarItem[]>([]);
+  const ownerRef = useRef<string | null>(null);
   const dirtyRef = useRef(new Set<string>());
   const editedDuringSync = useRef(new Set<string>());
   const syncing = useRef(false);
   const again = useRef(false);
-  const clientRef = useRef<SupabaseRest | null>(null);
+  const clientRef = useRef(rest);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const commit = useCallback((items: CalendarItem[]) => {
     allRef.current = items;
     setAll(items);
-    writeJSON(ITEMS_KEY, { items, dirty: [...dirtyRef.current] } satisfies Stored);
+    setUnsent(dirtyRef.current.size);
+    writeJSON(ITEMS_KEY, {
+      owner: ownerRef.current,
+      items,
+      dirty: [...dirtyRef.current],
+    } satisfies Stored);
   }, []);
 
   const runSync = useCallback(async () => {
@@ -110,7 +115,10 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     editedDuringSync.current.clear();
     setStatus({ state: 'syncing' });
     try {
+      const owner = ownerRef.current;
       const result = await syncRound(client, allRef.current, dirtyRef.current, null);
+      // Signed out (or switched account) while the round was in flight.
+      if (ownerRef.current !== owner || clientRef.current !== client) return;
       // Changes made while the round was in flight win over what it brought back.
       const edited = editedDuringSync.current;
       const current = new Map(allRef.current.map((item) => [item.id, item]));
@@ -151,34 +159,81 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     [runSync],
   );
 
-  // Load after mount (the static web render has no storage), then sync.
+  // Load after mount (the static web render has no storage).
   useEffect(() => {
     const stored = readJSON<Stored>(ITEMS_KEY);
     if (stored && Array.isArray(stored.items)) {
       // Items saved before a field existed get its empty value.
       const items = stored.items.map((item) => ({ ...item, place: item.place ?? '' }));
       allRef.current = items;
+      ownerRef.current = stored.owner ?? null;
       dirtyRef.current = new Set(stored.dirty ?? []);
       setAll(items);
+      setUnsent(dirtyRef.current.size);
     }
     setLoaded(true);
-    clientRef.current = makeClient();
-    if (!clientRef.current) {
+  }, []);
+
+  // Declared before the account effect below, so the client is current when it syncs.
+  useEffect(() => {
+    clientRef.current = rest;
+  }, [rest]);
+
+  // Follow the account: take this device's items into it on sign-in, keep
+  // another account's items off the screen, clear them on sign-out.
+  const accountUser = account.status === 'signed-in' ? account.user.id : null;
+  const ended = account.status === 'signed-out' ? account.ended : null;
+  useEffect(() => {
+    if (!loaded || account.status === 'loading') return;
+    const owner = ownerRef.current;
+    if (accountUser) {
+      if (owner !== accountUser) {
+        let items: CalendarItem[] = [];
+        if (owner === null && keepDeviceItems.current) {
+          // Made here while signed out: they join the account under new ids,
+          // so they can't collide with rows from an earlier session.
+          const now = new Date().toISOString();
+          const renamed: Record<string, string> = {};
+          items = allRef.current
+            .filter((item) => !item.deletedAt)
+            .map((item) => {
+              const id = newId();
+              renamed[item.id] = id;
+              return { ...item, id, updatedAt: now };
+            });
+          carryReminders(renamed);
+        }
+        keepDeviceItems.current = true;
+        ownerRef.current = accountUser;
+        dirtyRef.current = new Set(items.map((item) => item.id));
+        commit(items);
+      }
+      void runSync();
+      return;
+    }
+    if (ended && owner === ended.id) {
+      // The session ended: keep everything (and the unsent changes) until
+      // the same account signs in again.
       setStatus({
-        state: 'device-only',
-        reason:
-          Platform.OS === 'web'
-            ? 'This browser blocks site storage, so items last for this visit only'
-            : 'Kept for this session — saving on the device comes with the native build',
+        state: 'problem',
+        problem: 'unauthorized',
+        message: PROBLEM_TEXT.unauthorized,
+        unsent: dirtyRef.current.size,
       });
       return;
     }
-    void runSync();
-  }, [runSync]);
+    if (owner !== null) {
+      // Signed out: the account's items leave this device.
+      ownerRef.current = null;
+      dirtyRef.current = new Set();
+      commit([]);
+    }
+    setStatus(SIGNED_OUT);
+  }, [loaded, account.status, accountUser, ended, keepDeviceItems, commit, runSync]);
 
   // Sync again on reconnect, on return to the foreground, and periodically.
   useEffect(() => {
-    if (!loaded || !clientRef.current) return;
+    if (!loaded || !rest) return;
     const interval = setInterval(() => void runSync(), PERIODIC_MS);
     const app = AppState.addEventListener('change', (state) => {
       if (state === 'active') scheduleSync(0);
@@ -194,7 +249,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         window.removeEventListener('online', online);
       }
     };
-  }, [loaded, runSync, scheduleSync]);
+  }, [loaded, rest, runSync, scheduleSync]);
 
   const save = useCallback(
     (item: CalendarItem) => {
@@ -220,6 +275,16 @@ export function EventsProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(() => scheduleSync(0), [scheduleSync]);
 
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current);
+    await runSync();
+    // A round already in flight finishes (and runs again) on its own.
+    for (let i = 0; syncing.current && i < 150; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return dirtyRef.current.size;
+  }, [runSync]);
+
   const value = useMemo<EventsContextValue>(
     () => ({
       items: all.filter((item) => !item.deletedAt),
@@ -228,8 +293,10 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       save,
       remove,
       syncNow,
+      flush,
+      unsent,
     }),
-    [all, loaded, status, save, remove, syncNow],
+    [all, loaded, status, save, remove, syncNow, flush, unsent],
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;

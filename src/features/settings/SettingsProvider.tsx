@@ -16,8 +16,20 @@ import type { DialTheme } from '@/features/clock/dial-theme';
 import { areaOf, detectRegion, type Area } from '@/features/region/regions';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import { DEFAULT_SETTINGS, type Settings, type WeekStartSetting } from './settings';
+import { readJSON, writeJSON } from '@/lib/device-storage';
+
+import {
+  DEFAULT_SETTINGS,
+  sanitizeSettings,
+  type Settings,
+  type WeekStartSetting,
+} from './settings';
 import { loadSettings, saveSettings } from './settings-storage';
+import { NEVER, type SettingsMeta } from './settings-sync';
+import { useSettingsSync } from './use-settings-sync';
+
+/** When settings last changed here, and the account they were synced with. */
+const META_KEY = 'formtime.settings.meta.v1';
 
 type SettingsContextValue = {
   settings: Settings;
@@ -44,6 +56,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [meta, setMeta] = useState<SettingsMeta>({ updatedAt: NEVER, owner: null });
   // Saved settings load after mount: the static web render must match the
   // first client render, so both start from the defaults.
   const loaded = useRef(false);
@@ -52,6 +65,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const stored = loadSettings();
     // First visit: start in the region the device is set to, if supported.
     setSettings(stored ?? { ...DEFAULT_SETTINGS, ...detectRegion() });
+    setMeta(readJSON<SettingsMeta>(META_KEY) ?? { updatedAt: NEVER, owner: null });
     loaded.current = true;
   }, []);
 
@@ -59,8 +73,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (loaded.current) saveSettings(settings);
   }, [settings]);
 
+  useEffect(() => {
+    if (loaded.current) writeJSON(META_KEY, meta);
+  }, [meta]);
+
+  const touch = () => setMeta((m) => ({ ...m, updatedAt: new Date().toISOString() }));
+
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((current) => ({ ...current, ...patch }));
+    touch();
   }, []);
   // Resets the clock and calendar look; the chosen region stays as it is.
   const reset = useCallback(
@@ -76,6 +97,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       })),
     [],
   );
+  const resetAndTouch = useCallback(() => {
+    reset();
+    touch();
+  }, [reset]);
+
+  // Signed in, settings follow the account.
+  const apply = useCallback((next: Settings, updatedAt: string, owner: string) => {
+    setSettings(sanitizeSettings(next));
+    setMeta({ updatedAt, owner });
+  }, []);
+  const setOwner = useCallback(
+    (owner: string | null) => setMeta((m) => (m.owner === owner ? m : { ...m, owner })),
+    [],
+  );
+  useSettingsSync({ settings, meta, apply, setOwner });
 
   const scheme = useColorScheme();
   const mode: 'day' | 'night' =
@@ -87,7 +123,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return {
       settings,
       update,
-      reset,
+      reset: resetAndTouch,
       mode,
       dialTheme,
       uiTheme: calendarThemeFrom(dialTheme),
@@ -96,7 +132,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       weekStart:
         settings.weekStart === 'locale' ? defaultWeekStart() : WEEKDAY_OF[settings.weekStart],
     };
-  }, [settings, update, reset, mode]);
+  }, [settings, update, resetAndTouch, mode]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

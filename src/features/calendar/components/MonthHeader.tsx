@@ -123,8 +123,6 @@ export function MonthHeader({
             hint="Event, meeting, note, follow-up or alarm"
             onPress={onAdd}
             iconSize={iconSize}
-            restOpacity={0.8}
-            touchRestOpacity={0.85}
             style={styles.add}
           />
         ) : null}
@@ -135,8 +133,6 @@ export function MonthHeader({
           onPress={onPrevious}
           disabled={!onPrevious}
           iconSize={iconSize}
-          restOpacity={0.55}
-          touchRestOpacity={0.7}
         />
         <QuietIconButton
           icon={ChevronRight}
@@ -144,8 +140,6 @@ export function MonthHeader({
           onPress={onNext}
           disabled={!onNext}
           iconSize={iconSize}
-          restOpacity={0.55}
-          touchRestOpacity={0.7}
         />
       </View>
     </View>

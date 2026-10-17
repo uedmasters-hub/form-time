@@ -15,7 +15,15 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import {
+  QUIET,
+  quietOpacity,
+  quietTransition,
+  usePointerAwake,
+  withAlpha,
+} from '@/components/quiet-control';
 import { useCanHover } from '@/hooks/use-can-hover';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 type PageIndicatorProps = {
   labels: string[];
@@ -24,6 +32,8 @@ type PageIndicatorProps = {
   onSelect: (index: number) => void;
   activeColor: string;
   idleColor: string;
+  /** Ink, for the focus ring and pressed tint (as on the icon buttons). */
+  inkColor: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -33,8 +43,10 @@ const HEIGHT = 4;
 
 /**
  * Two small capsules — the dial's index shape, laid flat — that follow the
- * swipe. Quiet like the settings icon, and doubles as an accessible way to
- * switch views without swiping (tabs for screen readers and keyboards).
+ * swipe. Quiet like the icon buttons (see quiet-control): barely there at
+ * rest, stronger while the pointer moves, full on hover, press or focus.
+ * Doubles as an accessible way to switch views without swiping (tabs for
+ * screen readers and keyboards).
  */
 export function PageIndicator({
   labels,
@@ -43,19 +55,24 @@ export function PageIndicator({
   onSelect,
   activeColor,
   idleColor,
+  inkColor,
   style,
 }: PageIndicatorProps) {
   const canHover = useCanHover();
+  const awake = usePointerAwake();
+  const reducedMotion = useReducedMotion();
   const [hovered, setHovered] = useState(false);
-  const [pressing, setPressing] = useState(false);
-  const [focusVisible, setFocusVisible] = useState(false);
+  const [pressing, setPressing] = useState<number | null>(null);
+  const [focused, setFocused] = useState<number | null>(null);
 
-  const onFocus = (event: NativeSyntheticEvent<unknown>) => {
+  // Keyboard focus only (:focus-visible), so a click doesn't leave a ring.
+  const onFocus = (i: number) => (event: NativeSyntheticEvent<unknown>) => {
     const target = event.target as unknown as { matches?: (selector: string) => boolean };
-    setFocusVisible(Platform.OS !== 'web' || Boolean(target?.matches?.(':focus-visible')));
+    const visible = Platform.OS !== 'web' || Boolean(target?.matches?.(':focus-visible'));
+    setFocused(visible ? i : null);
   };
 
-  const opacity = hovered || pressing || focusVisible ? 1 : canHover ? 0.25 : 0.4;
+  const state = { active: hovered || pressing !== null || focused !== null, canHover, awake };
 
   return (
     <View
@@ -63,7 +80,12 @@ export function PageIndicator({
       accessibilityLabel="Views"
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
-      style={[styles.group, { opacity }, style]}
+      style={[
+        styles.group,
+        { opacity: quietOpacity(state) },
+        quietTransition(state, reducedMotion),
+        style,
+      ]}
     >
       {labels.map((label, i) => (
         <Pressable
@@ -72,11 +94,19 @@ export function PageIndicator({
           accessibilityLabel={label}
           aria-selected={i === index}
           onPress={() => onSelect(i)}
-          onPressIn={() => setPressing(true)}
-          onPressOut={() => setPressing(false)}
-          onFocus={onFocus}
-          onBlur={() => setFocusVisible(false)}
-          style={styles.hit}
+          onPressIn={() => setPressing(i)}
+          onPressOut={() => setPressing(null)}
+          onFocus={onFocus(i)}
+          onBlur={() => setFocused(null)}
+          style={[
+            styles.hit,
+            quietTransition(state, reducedMotion),
+            pressing === i && [
+              styles.pressed,
+              { backgroundColor: withAlpha(inkColor, QUIET.tint) },
+            ],
+            focused === i && { borderColor: inkColor },
+          ]}
         >
           <Capsule
             position={i}
@@ -119,8 +149,14 @@ const styles = StyleSheet.create({
   hit: {
     width: 32,
     height: 44,
+    borderRadius: 16,
+    borderWidth: QUIET.ring,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pressed: {
+    transform: [{ scale: QUIET.pressedScale }],
   },
   capsule: {
     height: HEIGHT,

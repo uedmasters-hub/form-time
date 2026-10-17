@@ -150,8 +150,6 @@ export function WhenEditor({
           icon={ChevronLeft}
           label="Previous day"
           onPress={() => onChange({ date: addDays(value.date, -1) })}
-          restOpacity={0.6}
-          touchRestOpacity={0.75}
         />
         <View style={styles.dateText} accessible accessibilityLabel={`Date: ${longDate}`}>
           <Text style={[styles.editorDate, { color: ui.ink }]}>{longDate}</Text>
@@ -163,8 +161,6 @@ export function WhenEditor({
           icon={ChevronRight}
           label="Next day"
           onPress={() => onChange({ date: addDays(value.date, 1) })}
-          restOpacity={0.6}
-          touchRestOpacity={0.75}
         />
       </View>
 

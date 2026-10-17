@@ -243,8 +243,6 @@ export function AccountSheet() {
                     label={reveal ? 'Hide password' : 'Show password'}
                     onPress={() => setReveal((r) => !r)}
                     iconSize={18}
-                    restOpacity={0.6}
-                    touchRestOpacity={0.7}
                   />
                 }
               />

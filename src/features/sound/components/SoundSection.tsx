@@ -63,8 +63,6 @@ export function SoundSection() {
               onPress={() => preview(s.id)}
               disabled={off}
               iconSize={14}
-              restOpacity={0.45}
-              touchRestOpacity={0.6}
             />
           }
         />

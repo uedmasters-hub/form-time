@@ -188,6 +188,23 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         />
       </Section>
 
+      {/* The day panel beside (or below) the month: each half on its own. */}
+      <View style={styles.switchGap}>
+        <SheetSwitch
+          label="Day & date"
+          detail="The selected day above its events"
+          value={settings.showDayDate}
+          onChange={(showDayDate) => update({ showDayDate })}
+          first
+        />
+        <SheetSwitch
+          label="Events & festivals"
+          detail="The day's plans, holidays and festivals"
+          value={settings.showDayEvents}
+          onChange={(showDayEvents) => update({ showDayEvents })}
+        />
+      </View>
+
       <Pressable
         accessibilityRole="button"
         onPress={reset}

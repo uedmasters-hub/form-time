@@ -1,6 +1,5 @@
-import { Bell } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 
@@ -8,6 +7,7 @@ import type { CalendarDate } from '../calendar-date';
 import type { CalendarSystem } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
 import { DayHeading } from './DayHeading';
+import { InfoEmpty, InfoHeading, InfoRow } from './InfoList';
 
 /** One of the user's own items on this day, ready to show. */
 export type DayItem = {
@@ -42,11 +42,17 @@ type DayPanelProps = {
   onOpenItem?: (id: string) => void;
   /** Controls set on the weekday line, at the far side (phones: Today, +). */
   actions?: ReactNode;
+  /** The weekday, numeral and month (Settings → Day & date). */
+  showDate?: boolean;
+  /** The day's items, holidays and festivals (Settings → Events & festivals). */
+  showEvents?: boolean;
 };
 
 /**
- * The selected day, set like the dial: a large monoline numeral, the weekday
- * above it, and the day's holidays and festivals below a hairline.
+ * The selected day, set like the digital watch's corner: the weekday, a
+ * large monoline numeral and the month on top, then the day's own items and
+ * its holidays and festivals in the watch's hairline-headed lists. Either
+ * half can be hidden in Settings.
  */
 export function DayPanel({
   system,
@@ -61,154 +67,116 @@ export function DayPanel({
   items = [],
   onOpenItem,
   actions,
+  showDate = true,
+  showEvents = true,
 }: DayPanelProps) {
   const end = align === 'end';
-  const type = Math.min(scale, 1.35);
   const secondary = system.secondaryDate?.(date);
+
+  const summary = [
+    showDate
+      ? `${system.longDate(date)}${secondary ? ` (${secondary})` : ''}${isToday ? ', today' : ''}`
+      : '',
+    showEvents
+      ? holidays.length
+        ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describe(h)}`).join('. ')
+        : 'No holidays or festivals'
+      : '',
+  ]
+    .filter(Boolean)
+    .join('. ');
+
+  // Phones keep Today and + on the first line that's shown.
+  if (!showDate && !showEvents) {
+    return actions ? <View style={styles.actionsAlone}>{actions}</View> : null;
+  }
 
   return (
     <View
       style={[styles.panel, end && styles.panelEnd]}
       // One summary for screen readers, unless it holds items to open.
       accessible={items.length === 0 && !actions}
-      accessibilityLabel={`${system.longDate(date)}${secondary ? ` (${secondary})` : ''}${
-        isToday ? ', today' : ''
-      }. ${
-        holidays.length
-          ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describe(h)}`).join('. ')
-          : 'No holidays or festivals'
-      }.`}
+      accessibilityLabel={`${summary}.`}
     >
-      <DayHeading
-        system={system}
-        date={date}
-        isToday={isToday}
-        theme={theme}
-        numeralHeight={numeralHeight}
-        scale={scale}
-        align={align}
-        actions={actions}
-      />
-
-      <View
-        style={[
-          styles.rule,
-          { backgroundColor: theme.hairline, marginTop: 24 * scale, marginBottom: 16 * scale },
-        ]}
-      />
-      {items.map((item, i) => (
-        <Pressable
-          key={item.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
-            item.place ? `, ${item.place}` : ''
-          }${item.hasReminder ? ', reminder set' : ''}`}
-          accessibilityHint="Opens it to edit or delete"
-          onPress={() => onOpenItem?.(item.id)}
-          style={({ hovered, pressed }) => [
-            styles.item,
-            {
-              marginTop: i === 0 ? -6 * scale : 4 * scale,
-              backgroundColor: hovered || pressed ? theme.hover : 'transparent',
-            },
-            end ? styles.itemEnd : styles.itemStart,
-          ]}
-        >
-          <View style={[styles.itemMeta, end && styles.rowEnd]}>
-            <View style={[styles.itemSquare, { backgroundColor: theme.ink }]} />
-            <Text
-              style={[styles.kind, { color: theme.muted, fontSize: 10 * type }]}
-              numberOfLines={1}
-            >
-              {`${item.kindLabel} · ${item.when}`.toLocaleUpperCase()}
-            </Text>
-            {item.hasReminder ? (
-              <Bell size={11 * type} color={theme.muted} strokeWidth={2} />
-            ) : null}
-          </View>
-          <Text
-            style={[
-              styles.holidayName,
-              { color: theme.ink, fontSize: 15 * type },
-              end && styles.textEnd,
-            ]}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          {item.place ? (
-            <Text
-              style={[
-                styles.holidayNote,
-                { color: theme.muted, fontSize: 12 * type },
-                end && styles.textEnd,
-              ]}
-              numberOfLines={1}
-            >
-              {placeLabel(item.place)}
-            </Text>
-          ) : null}
-        </Pressable>
-      ))}
-      {items.length > 0 ? (
-        <View
-          style={[
-            styles.rule,
-            { backgroundColor: theme.hairline, marginTop: 14 * scale, marginBottom: 16 * scale },
-          ]}
+      {showDate ? (
+        <DayHeading
+          system={system}
+          date={date}
+          isToday={isToday}
+          theme={theme}
+          numeralHeight={numeralHeight}
+          scale={scale}
+          align={align}
+          actions={actions}
         />
       ) : null}
-      {holidays.length === 0 ? (
-        <Text
-          style={[styles.empty, { color: theme.muted, fontSize: 13 * type }, end && styles.textEnd]}
-        >
-          No holidays or festivals
-        </Text>
-      ) : (
-        holidays.map((h, i) => (
-          <View
-            key={`${h.name}-${i}`}
-            style={[
-              styles.holiday,
-              { marginTop: i === 0 ? 0 : 14 * scale },
-              end && styles.panelEnd,
-            ]}
-          >
-            <Text
-              style={[
-                styles.kind,
-                {
-                  color: h.kind === 'public' ? theme.accent : theme.muted,
-                  fontSize: 10 * type,
-                },
-                end && styles.textEnd,
-              ]}
-            >
-              {kindLabels[h.kind].toLocaleUpperCase()}
-            </Text>
-            <Text
-              style={[
-                styles.holidayName,
-                { color: theme.ink, fontSize: 15 * type },
-                end && styles.textEnd,
-              ]}
-            >
-              {h.name}
-            </Text>
-            {describe(h) ? (
-              <Text
-                style={[
-                  styles.holidayNote,
-                  { color: theme.muted, fontSize: 12 * type },
-                  end && styles.textEnd,
-                ]}
-              >
-                {describe(h).replace(/^, /, '')}
-              </Text>
-            ) : null}
-          </View>
-        ))
-      )}
+
+      {showEvents ? (
+        <View style={[styles.lists, showDate && { marginTop: 24 * scale }]}>
+          <InfoHeading
+            label="Events"
+            theme={theme}
+            align={align}
+            scale={scale}
+            aside={
+              showDate || !actions ? undefined : (
+                <View style={[styles.actions, styles.asideActions]}>{actions}</View>
+              )
+            }
+          />
+          {items.length === 0 ? (
+            <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale} />
+          ) : (
+            items.map((item) => (
+              <InfoRow
+                key={item.id}
+                kind={`${item.kindLabel} · ${item.when}`}
+                title={item.title}
+                detail={item.place ? placeLabel(item.place) : undefined}
+                theme={theme}
+                align={align}
+                scale={scale}
+                bell={item.hasReminder}
+                titleLines={2}
+                onPress={() => onOpenItem?.(item.id)}
+                accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
+                  item.place ? `, ${item.place}` : ''
+                }${item.hasReminder ? ', reminder set' : ''}`}
+                accessibilityHint="Opens it to edit or delete"
+              />
+            ))
+          )}
+
+          {holidays.length > 0 ? (
+            <>
+              <View style={[styles.section, { marginTop: 14 * scale }]}>
+                <InfoHeading
+                  label="Holidays & festivals"
+                  theme={theme}
+                  align={align}
+                  scale={scale}
+                />
+              </View>
+              {holidays.map((h, i) => (
+                <InfoRow
+                  key={`${h.name}-${i}`}
+                  kind={kindLabels[h.kind]}
+                  title={h.name}
+                  detail={describe(h).replace(/^, /, '') || undefined}
+                  theme={theme}
+                  align={align}
+                  scale={scale}
+                  // Official holidays in the accent; observances stay quiet.
+                  kindColor={h.kind === 'public' ? theme.accent : theme.muted}
+                  markColor={h.kind === 'public' ? theme.accent : theme.muted}
+                  titleLines={2}
+                  accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
+                />
+              ))}
+            </>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -228,63 +196,24 @@ function describe(h: DayHoliday): string {
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    alignItems: 'flex-start',
-  },
-  panelEnd: {
-    alignItems: 'flex-end',
-  },
-  textEnd: {
-    textAlign: 'right',
-  },
-  rule: {
-    alignSelf: 'stretch',
-    height: StyleSheet.hairlineWidth,
-  },
-  empty: {
-    letterSpacing: 0.3,
-  },
-  item: {
-    alignSelf: 'stretch',
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  // The hover wash reaches past the text, so the text stays on the date's line.
-  itemStart: {
-    alignItems: 'flex-start',
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
-  },
-  itemEnd: {
-    alignItems: 'flex-end',
-    marginHorizontal: -8,
-    paddingHorizontal: 8,
-  },
-  itemMeta: {
+  panel: { alignItems: 'flex-start' },
+  panelEnd: { alignItems: 'flex-end' },
+  lists: { alignSelf: 'stretch' },
+  section: { alignSelf: 'stretch' },
+  // 44 pt targets on a small line: they overhang so the line keeps its height.
+  actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    marginVertical: -16,
+    marginRight: -12,
   },
-  rowEnd: {
+  // Centred on the heading's line rather than its baseline.
+  asideActions: { alignSelf: 'center' },
+  actionsAlone: {
+    flexDirection: 'row',
     justifyContent: 'flex-end',
-  },
-  itemSquare: {
-    width: 5,
-    height: 5,
-  },
-  holiday: {
-    alignItems: 'flex-start',
-  },
-  kind: {
-    fontWeight: '600',
-    letterSpacing: 1.6,
-  },
-  holidayName: {
-    marginTop: 3,
-    fontWeight: '400',
-  },
-  holidayNote: {
-    marginTop: 2,
-    lineHeight: 17,
+    gap: 4,
+    marginRight: -12,
   },
 });

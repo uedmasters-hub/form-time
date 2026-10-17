@@ -39,6 +39,10 @@ export type Settings = {
   showPublicHolidays: boolean;
   showRestrictedHolidays: boolean;
   showFestivals: boolean;
+  /** The calendar's day panel: the selected day's weekday, numeral and month. */
+  showDayDate: boolean;
+  /** The calendar's day panel: that day's items, holidays and festivals. */
+  showDayEvents: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -57,6 +61,8 @@ export const DEFAULT_SETTINGS: Settings = {
   showPublicHolidays: true,
   showRestrictedHolidays: true,
   showFestivals: true,
+  showDayDate: true,
+  showDayEvents: true,
 };
 
 export const APPEARANCES: readonly { id: Appearance; label: string }[] = [
@@ -157,5 +163,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     showPublicHolidays: bool(r.showPublicHolidays, d.showPublicHolidays),
     showRestrictedHolidays: bool(r.showRestrictedHolidays, d.showRestrictedHolidays),
     showFestivals: bool(r.showFestivals, d.showFestivals),
+    showDayDate: bool(r.showDayDate, d.showDayDate),
+    showDayEvents: bool(r.showDayEvents, d.showDayEvents),
   };
 }

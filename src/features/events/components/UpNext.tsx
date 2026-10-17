@@ -1,10 +1,15 @@
-import { Bell } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { TextButton } from '@/components/Buttons';
 import { calendarSystemFor } from '@/features/calendar/calendar-system';
 import { DayHeading } from '@/features/calendar/components/DayHeading';
+import {
+  InfoAside,
+  InfoEmpty,
+  InfoHeading,
+  InfoRow,
+} from '@/features/calendar/components/InfoList';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
 import { useComposer } from '../ComposerProvider';
@@ -63,22 +68,16 @@ export function WatchUpcoming({ now, limit }: { now: Date; limit: number }) {
 
   return (
     <View style={styles.list}>
-      <View style={[styles.heading, { borderColor: ui.hairline }]}>
-        {next.more > 0 ? (
-          <Text style={[styles.more, { color: ui.muted }]}>{`+${next.more} more`}</Text>
-        ) : (
-          <View />
-        )}
-        <Text style={[styles.label, { color: ui.muted }]} accessibilityRole="header">
-          UP NEXT
-        </Text>
-      </View>
+      <InfoHeading
+        label="Up next"
+        theme={ui}
+        aside={next.more > 0 ? <InfoAside text={`+${next.more} more`} theme={ui} /> : undefined}
+      />
 
       {next.rows.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: ui.muted }]}>Nothing else today.</Text>
+        <InfoEmpty text="Nothing else today." theme={ui}>
           <TextButton label="+ Add" tone="accent" onPress={addNew} a11yLabel="Add something" />
-        </View>
+        </InfoEmpty>
       ) : (
         next.rows.map((row) => (
           <Row
@@ -99,39 +98,20 @@ function Row({ row, onPress }: { row: Upcoming; onPress: () => void }) {
   const place = item.place.trim();
   const host = /^https?:\/\/([^/?#]+)/i.exec(place)?.[1]?.replace(/^www\./, '');
   return (
-    <Pressable
-      accessibilityRole="button"
+    <InfoRow
+      kind={`${KIND_LABEL[item.kind]} · ${when}`}
+      title={item.title}
+      detail={place ? (host ?? place) : undefined}
+      theme={ui}
+      lead={relative ?? undefined}
+      markColor={relative ? ui.accent : ui.ink}
+      bell={!!item.remindAt}
+      onPress={onPress}
       accessibilityLabel={`${KIND_LABEL[item.kind]}, ${when}${relative ? `, ${relative}` : ''}: ${
         item.title
       }${place ? `, ${host ?? place}` : ''}`}
       accessibilityHint="Opens it"
-      onPress={onPress}
-      style={({ hovered, pressed }) => [
-        styles.row,
-        (hovered || pressed) && { backgroundColor: ui.hover },
-      ]}
-    >
-      <View style={styles.meta}>
-        {relative ? (
-          <Text style={[styles.relative, { color: ui.accent }]}>
-            {relative.toLocaleUpperCase()}
-          </Text>
-        ) : null}
-        {item.remindAt ? <Bell size={11} color={ui.muted} strokeWidth={2} /> : null}
-        <View style={[styles.mark, { backgroundColor: relative ? ui.accent : ui.ink }]} />
-        <Text style={[styles.kind, { color: ui.muted }]} numberOfLines={1}>
-          {`${KIND_LABEL[item.kind]} · ${when}`.toLocaleUpperCase()}
-        </Text>
-      </View>
-      <Text style={[styles.title, { color: ui.ink }]} numberOfLines={1}>
-        {item.title}
-      </Text>
-      {place ? (
-        <Text style={[styles.place, { color: ui.muted }]} numberOfLines={1}>
-          {host ?? place}
-        </Text>
-      ) : null}
-    </Pressable>
+    />
   );
 }
 
@@ -142,36 +122,4 @@ export const UPCOMING_HEADING_HEIGHT = 32;
 
 const styles = StyleSheet.create({
   list: { alignSelf: 'stretch', alignItems: 'flex-end' },
-  heading: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    paddingTop: 12,
-    marginBottom: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  label: { fontSize: 10, fontWeight: '600', letterSpacing: 1.6 },
-  more: { fontSize: 12 },
-  empty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginRight: -12,
-  },
-  emptyText: { fontSize: 14 },
-  row: {
-    alignSelf: 'stretch',
-    alignItems: 'flex-end',
-    paddingVertical: 7,
-    paddingHorizontal: 8,
-    marginHorizontal: -8,
-    borderRadius: 10,
-  },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 7, justifyContent: 'flex-end' },
-  mark: { width: 5, height: 5 },
-  kind: { fontSize: 10, fontWeight: '600', letterSpacing: 1.4 },
-  relative: { fontSize: 10, fontWeight: '600', letterSpacing: 1.2 },
-  title: { fontSize: 16, marginTop: 3, textAlign: 'right' },
-  place: { fontSize: 12, marginTop: 1, textAlign: 'right' },
 });

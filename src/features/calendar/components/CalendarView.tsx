@@ -326,6 +326,8 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                 align={wide ? 'end' : 'start'}
                 items={selectedItems}
                 onOpenItem={openItem}
+                showDate={settings.showDayDate}
+                showEvents={settings.showDayEvents}
                 actions={
                   wide ? undefined : (
                     <>

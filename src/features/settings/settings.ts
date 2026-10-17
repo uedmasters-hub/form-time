@@ -20,6 +20,11 @@ export type Settings = {
   movement: Movement;
   size: ClockSize;
   secondHand: boolean;
+  /**
+   * Shadows, glow and depth (true): a tactile, dimensional look. False: a
+   * completely flat one — solid colours and plain geometry everywhere.
+   */
+  depth: boolean;
   weekStart: WeekStartSetting;
   /** Country whose time and holidays are shown. */
   region: RegionCode;
@@ -40,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   movement: 'smooth',
   size: 'classic',
   secondHand: true,
+  depth: true,
   weekStart: 'locale',
   region: DEFAULT_REGION,
   area: DEFAULT_REGION,
@@ -121,6 +127,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       d.size,
     ),
     secondHand: typeof r.secondHand === 'boolean' ? r.secondHand : d.secondHand,
+    depth: bool(r.depth, d.depth),
     weekStart: oneOf(
       r.weekStart,
       WEEK_STARTS.map((w) => w.id),

@@ -60,6 +60,20 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         />
       </Section>
 
+      <View style={styles.switchGap}>
+        <SheetSwitch
+          label="Shadows & glow"
+          detail={
+            settings.depth
+              ? 'Soft shadows, glow and depth'
+              : 'Flat — solid colours and plain shapes'
+          }
+          value={settings.depth}
+          onChange={(depth) => update({ depth })}
+          first
+        />
+      </View>
+
       {showDials ? (
         <Section label={settings.appearance === 'system' ? 'Dial · day' : 'Dial'}>
           <View role="radiogroup" accessibilityLabel="Dial" style={styles.swatches}>

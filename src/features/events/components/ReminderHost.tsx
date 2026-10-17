@@ -110,7 +110,11 @@ export function ReminderHost() {
             key={item.id}
             role="alert"
             aria-live="assertive"
-            style={[styles.card, { backgroundColor: ui.surface, borderColor: ui.hairline }]}
+            style={[
+              styles.card,
+              ui.flat ? styles.flatCard : styles.raised,
+              { backgroundColor: ui.surface, borderColor: ui.hairline },
+            ]}
           >
             <View
               style={[
@@ -192,8 +196,12 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingLeft: 0,
     borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
+  },
+  /** Flat: a crisp 1 pt edge stands in for the shadow. */
+  flatCard: { borderWidth: 1 },
+  raised: {
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 24,

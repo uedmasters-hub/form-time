@@ -10,6 +10,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import type { DialTheme } from '../dial-theme';
+import { flatDialFrom, type FlatDial } from '../flat-dial';
 import { CENTER, DIAL_SIZE, type HandAngles } from '../geometry';
 import { HOUR_HAND, MINUTE_HAND, handOutline, secondHandOutline, type HandSpec } from '../hands';
 
@@ -19,6 +20,8 @@ type ClockHandsProps = {
   theme: DialTheme;
   idPrefix: string;
   showSecondHand?: boolean;
+  /** No shadows, glow or bevels: solid colours and plain geometry. */
+  flat?: boolean;
 };
 
 // Outlines never change, so build them once.
@@ -132,6 +135,48 @@ function SculptedHand({
   );
 }
 
+/** Flat hands: solid shapes, a stripe for the lume, one hub disc, a cap. */
+function FlatHands({
+  size,
+  angles,
+  colors,
+  showSecondHand,
+}: {
+  size: number;
+  angles: HandAngles;
+  colors: FlatDial;
+  showSecondHand: boolean;
+}) {
+  const hand = (d: string, spec: HandSpec, angle: number) => (
+    <G transform={`translate(${CENTER} ${CENTER}) rotate(${angle})`}>
+      <Path d={d} fill={colors.hand} />
+      <Line
+        x1={0}
+        y1={-spec.lumeStart}
+        x2={0}
+        y2={-spec.lumeEnd}
+        stroke={colors.handInsert}
+        strokeWidth={Math.max(2, spec.lumeHalf * 2 - 1)}
+        strokeLinecap="round"
+      />
+    </G>
+  );
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`} pointerEvents="none">
+      {hand(HOUR_PATH, HOUR_HAND, angles.hour)}
+      {hand(MINUTE_PATH, MINUTE_HAND, angles.minute)}
+      <Circle cx={CENTER} cy={CENTER} r={24} fill={colors.hand} />
+      {showSecondHand ? (
+        <G transform={`translate(${CENTER} ${CENTER}) rotate(${angles.second})`}>
+          <Path d={SECOND_PATH} fill={colors.second} />
+        </G>
+      ) : null}
+      <Circle cx={CENTER} cy={CENTER} r={9} fill={colors.cap} />
+      <Circle cx={CENTER} cy={CENTER} r={3.2} fill={colors.pin} />
+    </Svg>
+  );
+}
+
 /** The moving layer: hands, hub and their shadows. Drawn over ClockDial. */
 export function ClockHands({
   size,
@@ -139,7 +184,18 @@ export function ClockHands({
   theme,
   idPrefix,
   showSecondHand = true,
+  flat = false,
 }: ClockHandsProps) {
+  if (flat) {
+    return (
+      <FlatHands
+        size={size}
+        angles={angles}
+        colors={flatDialFrom(theme)}
+        showSecondHand={showSecondHand}
+      />
+    );
+  }
   const id = (name: string) => `${idPrefix}-hands-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
 

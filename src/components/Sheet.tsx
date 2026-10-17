@@ -159,6 +159,8 @@ export function Sheet({
       <Animated.View
         style={[
           styles.panel,
+          // Flat: a crisp 1 pt edge stands in for the shadow.
+          ui.flat ? styles.flatPanel : styles.raised,
           { backgroundColor: surface ?? ui.surface, borderColor: ui.hairline },
           placement,
           panelStyle,
@@ -247,23 +249,66 @@ export function SheetSwitch({
         <Text style={[styles.switchLabel, { color: ui.ink }]}>{label}</Text>
         {detail ? <Text style={[styles.switchDetail, { color: ui.muted }]}>{detail}</Text> : null}
       </View>
-      <Switch
-        accessibilityLabel={label}
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: ui.hairline, true: ui.accent }}
-        thumbColor={ui.surface}
-        {...({ activeThumbColor: ui.surface } as object)}
-      />
+      {ui.flat ? (
+        <FlatSwitch label={label} value={value} onChange={onChange} />
+      ) : (
+        <Switch
+          accessibilityLabel={label}
+          value={value}
+          onValueChange={onChange}
+          trackColor={{ false: ui.hairline, true: ui.accent }}
+          thumbColor={ui.surface}
+          {...({ activeThumbColor: ui.surface } as object)}
+        />
+      )}
     </View>
+  );
+}
+
+/**
+ * The switch for flat mode: a track and a solid thumb, no shadow (the
+ * platform switch on web draws one under its thumb).
+ */
+function FlatSwitch({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const { uiTheme: ui } = useSettings();
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      aria-checked={value}
+      onPress={() => onChange(!value)}
+      hitSlop={8}
+      style={[styles.flatTrack, { backgroundColor: value ? ui.accent : ui.hairline }]}
+    >
+      <View
+        style={[
+          styles.flatThumb,
+          { backgroundColor: ui.surface, transform: [{ translateX: value ? 16 : 0 }] },
+        ]}
+      />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   panel: {
     position: 'absolute',
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
+  },
+  flatPanel: {
+    borderWidth: 1,
+  },
+  raised: {
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 30,
@@ -317,6 +362,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  flatTrack: {
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    padding: 3,
+    justifyContent: 'center',
+  },
+  flatThumb: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   switchText: {
     flexShrink: 1,

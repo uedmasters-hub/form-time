@@ -21,9 +21,11 @@ export type CalendarTheme = {
   onLume: string;
   lumeEdge: string;
   lumeGlow: string;
+  /** "Shadows & glow" off: no shadows, glow or elevation anywhere. */
+  flat: boolean;
 };
 
-export function calendarThemeFrom(dial: DialTheme): CalendarTheme {
+export function calendarThemeFrom(dial: DialTheme, flat = false): CalendarTheme {
   const night = dial.mode === 'night';
   const ink = dial.numeral;
   const surface = isDark(dial.page)
@@ -46,6 +48,7 @@ export function calendarThemeFrom(dial: DialTheme): CalendarTheme {
     onLume: bestOn(night ? mix(dial.lume, dial.page, 0.12) : dial.lume, [ink, dial.page]),
     lumeEdge: night ? dial.lume : dial.steelShade,
     lumeGlow: dial.lumeGlow,
+    flat,
   };
 }
 

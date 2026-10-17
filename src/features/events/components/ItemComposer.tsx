@@ -569,7 +569,7 @@ export function ItemComposer({ request, onClose }: ItemComposerProps) {
       }
       anchor="center"
       surface={paper.paper}
-      texture={<DotGrid color={paper.dots} />}
+      texture={ui.flat ? undefined : <DotGrid color={paper.dots} />}
       footer={footer}
     >
       {/* 1 · When */}

@@ -13,6 +13,7 @@ import Svg, {
 } from 'react-native-svg';
 
 import type { DialTheme } from '../dial-theme';
+import { flatDialFrom } from '../flat-dial';
 import { CENTER, DIAL, DIAL_SIZE, polar } from '../geometry';
 import { Numeral } from './Numeral';
 
@@ -21,6 +22,8 @@ type ClockDialProps = {
   theme: DialTheme;
   /** Unique prefix so gradient/filter ids never collide between clocks. */
   idPrefix: string;
+  /** No shadows, glow or bevels: solid colours and plain geometry. */
+  flat?: boolean;
 };
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i);
@@ -35,37 +38,40 @@ const INDEX_LUME_WIDTH = 8.6;
  * The static dial: face, minute track, applied indices and numerals.
  * Drawn once and memoised; only the hands layer changes over time.
  */
-function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
+function ClockDialImpl({ size, theme, idPrefix, flat = false }: ClockDialProps) {
   const id = (name: string) => `${idPrefix}-dial-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
+  const solid = flat ? flatDialFrom(theme) : null;
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${DIAL_SIZE} ${DIAL_SIZE}`}>
-      <Defs>
-        <RadialGradient id={id('face')} cx="50%" cy="46%" r="54%">
-          <Stop offset="0" stopColor={theme.dialCenter} />
-          <Stop offset="1" stopColor={theme.dialEdge} />
-        </RadialGradient>
+      {solid ? null : (
+        <Defs>
+          <RadialGradient id={id('face')} cx="50%" cy="46%" r="54%">
+            <Stop offset="0" stopColor={theme.dialCenter} />
+            <Stop offset="1" stopColor={theme.dialEdge} />
+          </RadialGradient>
 
-        {/* Polished frame of an applied index: bevel across its width. */}
-        <LinearGradient id={id('steel')} x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor={theme.steelShade} />
-          <Stop offset="0.28" stopColor={theme.steelHighlight} />
-          <Stop offset="0.62" stopColor={theme.steelMid} />
-          <Stop offset="1" stopColor={theme.steelShade} />
-        </LinearGradient>
+          {/* Polished frame of an applied index: bevel across its width. */}
+          <LinearGradient id={id('steel')} x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={theme.steelShade} />
+            <Stop offset="0.28" stopColor={theme.steelHighlight} />
+            <Stop offset="0.62" stopColor={theme.steelMid} />
+            <Stop offset="1" stopColor={theme.steelShade} />
+          </LinearGradient>
 
-        <Filter id={id('glow')} x="-50%" y="-50%" width="200%" height="200%">
-          <FeGaussianBlur stdDeviation={9} />
-        </Filter>
-        <Filter id={id('soft')} x="-50%" y="-50%" width="200%" height="200%">
-          <FeGaussianBlur stdDeviation={3} />
-        </Filter>
-      </Defs>
+          <Filter id={id('glow')} x="-50%" y="-50%" width="200%" height="200%">
+            <FeGaussianBlur stdDeviation={9} />
+          </Filter>
+          <Filter id={id('soft')} x="-50%" y="-50%" width="200%" height="200%">
+            <FeGaussianBlur stdDeviation={3} />
+          </Filter>
+        </Defs>
+      )}
 
       {/* Face. Its edge colour matches the page, so it has no visible boundary;
           the rim is a separate hover-only layer (ClockRim). */}
-      <Circle cx={CENTER} cy={CENTER} r={DIAL.faceRadius} fill={url('face')} />
+      <Circle cx={CENTER} cy={CENTER} r={DIAL.faceRadius} fill={solid ? solid.face : url('face')} />
 
       {/* Minute track — the hour positions are carried by the applied indices */}
       {MINUTES.filter((m) => m % 5 !== 0).map((m) => {
@@ -86,48 +92,74 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       })}
 
       {/* Lume halo behind every index */}
-      <G filter={url('glow')} opacity={theme.indexGlow}>
-        {HOURS.map((h) => {
-          const outer = polar(DIAL.indexOuter - 4, h * 30);
-          const inner = polar(DIAL.indexInner + 4, h * 30);
-          return (
-            <Line
-              key={`glow-${h}`}
-              x1={inner.x}
-              y1={inner.y}
-              x2={outer.x}
-              y2={outer.y}
-              stroke={theme.lumeGlow}
-              strokeWidth={INDEX_WIDTH + 6}
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </G>
+      {solid ? null : (
+        <G filter={url('glow')} opacity={theme.indexGlow}>
+          {HOURS.map((h) => {
+            const outer = polar(DIAL.indexOuter - 4, h * 30);
+            const inner = polar(DIAL.indexInner + 4, h * 30);
+            return (
+              <Line
+                key={`glow-${h}`}
+                x1={inner.x}
+                y1={inner.y}
+                x2={outer.x}
+                y2={outer.y}
+                stroke={theme.lumeGlow}
+                strokeWidth={INDEX_WIDTH + 6}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </G>
+      )}
 
       {/* Contact shadow: indices are applied, so they sit slightly above the face */}
-      <G filter={url('soft')} opacity={theme.contactShadow} transform="translate(2 4)">
-        {HOURS.map((h) => {
-          const outer = polar(DIAL.indexOuter, h * 30);
-          const inner = polar(DIAL.indexInner, h * 30);
-          return (
-            <Line
-              key={`shadow-${h}`}
-              x1={inner.x}
-              y1={inner.y}
-              x2={outer.x}
-              y2={outer.y}
-              stroke={theme.shadow}
-              strokeWidth={INDEX_WIDTH}
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </G>
+      {solid ? null : (
+        <G filter={url('soft')} opacity={theme.contactShadow} transform="translate(2 4)">
+          {HOURS.map((h) => {
+            const outer = polar(DIAL.indexOuter, h * 30);
+            const inner = polar(DIAL.indexInner, h * 30);
+            return (
+              <Line
+                key={`shadow-${h}`}
+                x1={inner.x}
+                y1={inner.y}
+                x2={outer.x}
+                y2={outer.y}
+                stroke={theme.shadow}
+                strokeWidth={INDEX_WIDTH}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </G>
+      )}
 
-      {/* Applied indices: steel frame with a lume insert */}
+      {/* Applied indices: steel frame with a lume insert (flat: two solid capsules) */}
       {HOURS.map((h) => {
         const p = polar(INDEX_MID, h * 30);
+        if (solid) {
+          return (
+            <G key={`index-${h}`} transform={`translate(${p.x} ${p.y}) rotate(${h * 30})`}>
+              <Rect
+                x={-INDEX_WIDTH / 2}
+                y={-INDEX_LENGTH / 2}
+                width={INDEX_WIDTH}
+                height={INDEX_LENGTH}
+                rx={INDEX_WIDTH / 2}
+                fill={solid.index}
+              />
+              <Rect
+                x={-INDEX_LUME_WIDTH / 2 + 1.5}
+                y={-INDEX_LENGTH / 2 + (INDEX_WIDTH - INDEX_LUME_WIDTH) / 2 + 1.5}
+                width={INDEX_LUME_WIDTH - 3}
+                height={INDEX_LENGTH - (INDEX_WIDTH - INDEX_LUME_WIDTH) - 3}
+                rx={(INDEX_LUME_WIDTH - 3) / 2}
+                fill={solid.indexInsert}
+              />
+            </G>
+          );
+        }
         return (
           <G key={`index-${h}`} transform={`translate(${p.x} ${p.y}) rotate(${h * 30})`}>
             <Rect
@@ -183,7 +215,7 @@ function ClockDialImpl({ size, theme, idPrefix }: ClockDialProps) {
       })}
 
       {/* Night dials: the hour numerals glow (a blurred copy beneath them) */}
-      {theme.numeralGlow > 0 ? (
+      {!solid && theme.numeralGlow > 0 ? (
         <G filter={url('glow')} opacity={theme.numeralGlow}>
           {HOURS.map((h) => (
             <HourNumeral key={`hour-glow-${h}`} position={h} color={theme.lumeGlow} />

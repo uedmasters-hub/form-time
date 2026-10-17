@@ -126,7 +126,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       reset: resetAndTouch,
       mode,
       dialTheme,
-      uiTheme: calendarThemeFrom(dialTheme),
+      uiTheme: calendarThemeFrom(dialTheme, !settings.depth),
       area: areaOf(settings.region, settings.area),
       timeZone: areaOf(settings.region, settings.area).timeZone,
       weekStart:

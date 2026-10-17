@@ -51,6 +51,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
             showSecondHand={settings.secondHand}
             timeZone={timeZone}
             paused={paused}
+            flat={!settings.depth}
           />
         </ClockTimePicker>
       ) : null}

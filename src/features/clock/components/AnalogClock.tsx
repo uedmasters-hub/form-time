@@ -21,6 +21,8 @@ type AnalogClockProps = {
   timeZone?: string;
   /** Stop redrawing, e.g. while another view covers the clock. */
   paused?: boolean;
+  /** No shadows, glow or bevels (the "Shadows & glow" setting, off). */
+  flat?: boolean;
 };
 
 const timeLabels = new Map<string, Intl.DateTimeFormat>();
@@ -46,6 +48,7 @@ export function AnalogClock({
   showSecondHand = true,
   timeZone,
   paused = false,
+  flat = false,
 }: AnalogClockProps) {
   // SVG ids are document-global on web; React ids can contain characters
   // that aren't valid in url(#…) references, so keep only safe ones.
@@ -71,7 +74,7 @@ export function AnalogClock({
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
     >
-      <ClockDial size={size} theme={theme} idPrefix={idPrefix} />
+      <ClockDial size={size} theme={theme} idPrefix={idPrefix} flat={flat} />
       <ClockRim size={size} theme={theme} visible={hovered} animate={!reducedMotion} />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <ClockHands
@@ -80,6 +83,7 @@ export function AnalogClock({
           theme={theme}
           idPrefix={idPrefix}
           showSecondHand={showSecondHand}
+          flat={flat}
         />
       </View>
     </View>

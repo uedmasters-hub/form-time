@@ -74,13 +74,15 @@ export function WhenStamp({
       onPress={onPress}
       style={({ hovered, pressed }) => [
         styles.stamp,
+        // Flat: set square, no tape — plain geometry only.
+        !ui.flat && styles.tilted,
         {
           borderColor: paper.stamp,
           backgroundColor: hovered || pressed || open ? ui.hover : 'transparent',
         },
       ]}
     >
-      <View style={[styles.tape, { backgroundColor: paper.tape }]} />
+      {ui.flat ? null : <View style={[styles.tape, { backgroundColor: paper.tape }]} />}
       <View style={styles.timeBlock}>
         {value.timed ? (
           <>
@@ -390,8 +392,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 6,
     marginTop: 10,
-    transform: [{ rotate: '-0.8deg' }],
   },
+  tilted: { transform: [{ rotate: '-0.8deg' }] },
   tape: {
     position: 'absolute',
     top: -9,

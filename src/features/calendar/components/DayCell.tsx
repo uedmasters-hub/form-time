@@ -97,7 +97,9 @@ const DayCellImpl = forwardRef<View, DayCellProps>(function DayCell(
             ) : null}
             {isSelected ? (
               <>
-                <Circle cx={50} cy={50} r={42} fill={theme.lumeGlow} opacity={0.18} />
+                {theme.flat ? null : (
+                  <Circle cx={50} cy={50} r={42} fill={theme.lumeGlow} opacity={0.18} />
+                )}
                 <Circle
                   cx={50}
                   cy={50}

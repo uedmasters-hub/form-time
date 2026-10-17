@@ -39,6 +39,14 @@ npm run dist:win     # on Windows → release/FORM TIME Setup 1.0.0.exe (x64 + a
 - Only the app's own scripts can run (a Content-Security-Policy on its pages);
   the page has no access to Node or the file system.
 
+## Icons
+
+`build-resources/` holds the app icon, made from the FORM / TIME mark
+(`public/icon.svg`): `icon-mac.png`, the mark on a rounded ivory tile sized to
+Apple's icon grid, and `icon.png` (Windows, Linux), the mark on an ivory disc
+so it reads on dark and light taskbars. electron-builder turns them into
+`.icns` and `.ico`.
+
 ## Not yet
 
 - **Google Calendar** is switched off in the desktop build (`scripts/build-web.cjs`
@@ -49,6 +57,5 @@ npm run dist:win     # on Windows → release/FORM TIME Setup 1.0.0.exe (x64 + a
   (right-click → Open the first time) until signed with a Developer ID and
   notarized; Windows SmartScreen warns until signed with a code-signing
   certificate. Add the certificates to electron-builder when available.
-- **Icon**: uses `assets/images/icon.png` (the current app icon).
 - Account email links (confirm, reset password) open in the browser; sign in
   with your password in the app afterwards.

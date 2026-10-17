@@ -31,8 +31,9 @@
       "package.json",
       "app-dist/**/*"
     ],
-    "icon": "../assets/images/icon.png",
+    "icon": "build-resources/icon.png",
     "mac": {
+      "icon": "build-resources/icon-mac.png",
       "category": "public.app-category.productivity",
       "target": [
         {

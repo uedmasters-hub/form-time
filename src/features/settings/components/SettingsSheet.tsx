@@ -11,6 +11,7 @@ import {
 } from '@/features/clock/dial-palettes';
 import { useAccount } from '@/features/account/AccountProvider';
 import { AccountSection } from '@/features/account/components/AccountSection';
+import { GoogleSection } from '@/features/google/components/GoogleSection';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 import { APPEARANCES, FACES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
@@ -50,6 +51,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           openSheet(sheet);
         }}
       />
+      <GoogleSection />
 
       <Section label="Appearance">
         <OptionGroup

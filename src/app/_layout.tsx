@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AccountProvider } from '@/features/account/AccountProvider';
 import { EventsProvider } from '@/features/events/EventsProvider';
+import { GoogleSyncProvider } from '@/features/google/GoogleSyncProvider';
 import { SettingsProvider, useSettings } from '@/features/settings/SettingsProvider';
 import { isDark } from '@/theme/color';
 
@@ -23,11 +24,13 @@ export default function RootLayout() {
       <AccountProvider>
         <SettingsProvider>
           <EventsProvider>
-            <ThemedStatusBar />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="explore" />
-            </Stack>
+            <GoogleSyncProvider>
+              <ThemedStatusBar />
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="explore" />
+              </Stack>
+            </GoogleSyncProvider>
           </EventsProvider>
         </SettingsProvider>
       </AccountProvider>

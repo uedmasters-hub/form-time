@@ -11,6 +11,8 @@ import {
 import { AppState, Platform } from 'react-native';
 
 import { useAccount } from '@/features/account/AccountProvider';
+import { isImportedId } from '@/features/google/google-map';
+import { carryGoogleLinks } from '@/features/google/google-store';
 import { readJSON, writeJSON } from '@/lib/device-storage';
 import { SyncError, type SyncProblem } from '@/features/sync/supabase-rest';
 
@@ -45,6 +47,15 @@ type EventsContextValue = {
   flush: () => Promise<number>;
   /** Changes not yet in the account. */
   unsent: number;
+  /** Every item as stored, deleted ones included (for calendar sync). */
+  getAll: () => CalendarItem[];
+  /**
+   * Changes from another calendar (Google), stored like the user's own and
+   * sent on to the account. Each applies only if the item still has the
+   * `base` updatedAt it was worked out from; the ids of any that changed in
+   * the meantime come back, untouched, for the next round.
+   */
+  applyExternal: (changes: { item: CalendarItem; base: string | null }[]) => string[];
 };
 
 const ITEMS_KEY = 'formtime.items.v1';
@@ -191,17 +202,20 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         let items: CalendarItem[] = [];
         if (owner === null && keepDeviceItems.current) {
           // Made here while signed out: they join the account under new ids,
-          // so they can't collide with rows from an earlier session.
+          // so they can't collide with rows from an earlier session. Events
+          // imported from Google keep theirs: the same event has the same id
+          // everywhere, so it merges with the account's copy, never doubles.
           const now = new Date().toISOString();
           const renamed: Record<string, string> = {};
           items = allRef.current
             .filter((item) => !item.deletedAt)
             .map((item) => {
-              const id = newId();
-              renamed[item.id] = id;
+              const id = isImportedId(item.id) ? item.id : newId();
+              if (id !== item.id) renamed[item.id] = id;
               return { ...item, id, updatedAt: now };
             });
           carryReminders(renamed);
+          carryGoogleLinks(renamed);
         }
         keepDeviceItems.current = true;
         ownerRef.current = accountUser;
@@ -275,6 +289,30 @@ export function EventsProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(() => scheduleSync(0), [scheduleSync]);
 
+  const getAll = useCallback(() => allRef.current, []);
+
+  const applyExternal = useCallback(
+    (changes: { item: CalendarItem; base: string | null }[]) => {
+      if (changes.length === 0) return [];
+      const current = new Map(allRef.current.map((item) => [item.id, item]));
+      const skipped: string[] = [];
+      for (const { item, base } of changes) {
+        const existing = current.get(item.id);
+        if (existing && existing.updatedAt !== base) {
+          skipped.push(item.id); // edited here while the other calendar synced
+          continue;
+        }
+        current.set(item.id, item);
+        dirtyRef.current.add(item.id);
+        if (syncing.current) editedDuringSync.current.add(item.id);
+      }
+      commit([...current.values()]);
+      scheduleSync();
+      return skipped;
+    },
+    [commit, scheduleSync],
+  );
+
   const flush = useCallback(async () => {
     if (timer.current) clearTimeout(timer.current);
     await runSync();
@@ -295,8 +333,10 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       syncNow,
       flush,
       unsent,
+      getAll,
+      applyExternal,
     }),
-    [all, loaded, status, save, remove, syncNow, flush, unsent],
+    [all, loaded, status, save, remove, syncNow, flush, unsent, getAll, applyExternal],
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;

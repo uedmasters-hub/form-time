@@ -14,6 +14,7 @@ import { AccountSection } from '@/features/account/components/AccountSection';
 import { GoogleSection } from '@/features/google/components/GoogleSection';
 import { SoundSection } from '@/features/sound/components/SoundSection';
 import { useSound } from '@/features/sound/SoundProvider';
+import { VERSION_LABEL } from '@/features/updates/build-info';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 import { APPEARANCES, FACES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
@@ -223,6 +224,10 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         <RotateCcw size={14} color={ui.muted} strokeWidth={1.5} />
         <Text style={[styles.resetText, { color: ui.muted }]}>Reset to defaults</Text>
       </Pressable>
+
+      <Text style={[styles.version, { color: ui.muted }]} selectable>
+        {`FORM / TIME ${VERSION_LABEL}`}
+      </Text>
     </Sheet>
   );
 }
@@ -270,5 +275,11 @@ const styles = StyleSheet.create({
   },
   resetText: {
     fontSize: 13,
+  },
+  version: {
+    fontSize: 11,
+    letterSpacing: 0.3,
+    marginTop: 14,
+    opacity: 0.8,
   },
 });

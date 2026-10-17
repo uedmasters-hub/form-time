@@ -9,10 +9,13 @@ import { DEFAULT_REGION, REGIONS, areaOf, type RegionCode } from '@/features/reg
 export type Appearance = 'day' | 'night' | 'system';
 export type Movement = 'quartz' | 'mechanical' | 'smooth';
 export type ClockSize = 'classic' | 'compact';
+export type ClockFace = 'analog' | 'digital';
 export type WeekStartSetting = 'locale' | 'monday' | 'sunday' | 'saturday';
 
 export type Settings = {
   appearance: Appearance;
+  /** The clock page: hands on a dial, or numerals with what's coming up. */
+  face: ClockFace;
   /** Dial used in day appearance. */
   dial: DialId;
   /** Lume colour used in night appearance. */
@@ -40,6 +43,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   appearance: 'day',
+  face: 'analog',
   dial: 'aqua',
   lume: 'aqua',
   movement: 'smooth',
@@ -59,6 +63,11 @@ export const APPEARANCES: readonly { id: Appearance; label: string }[] = [
   { id: 'day', label: 'Day' },
   { id: 'night', label: 'Night' },
   { id: 'system', label: 'System' },
+];
+
+export const FACES: readonly { id: ClockFace; label: string }[] = [
+  { id: 'analog', label: 'Analog' },
+  { id: 'digital', label: 'Digital' },
 ];
 
 export const MOVEMENTS: readonly { id: Movement; label: string; detail: string }[] = [
@@ -105,6 +114,11 @@ export function sanitizeSettings(raw: unknown): Settings {
       r.appearance,
       APPEARANCES.map((a) => a.id),
       d.appearance,
+    ),
+    face: oneOf(
+      r.face,
+      FACES.map((f) => f.id),
+      d.face,
     ),
     dial: oneOf(
       r.dial,

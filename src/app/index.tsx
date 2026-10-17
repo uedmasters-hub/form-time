@@ -3,6 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Clock3, RectangleEllipsis } from 'lucide-react-native';
+
+import { QuietIconButton } from '@/components/QuietIconButton';
 import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
 import { AccountSheet } from '@/features/account/components/AccountSheet';
@@ -33,7 +36,8 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const progress = useSharedValue(0);
-  const { uiTheme } = useSettings();
+  const { uiTheme, settings, update } = useSettings();
+  const digital = settings.face === 'digital';
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
 
@@ -72,6 +76,19 @@ export default function Home() {
                 top: insets.top + EDGE,
               }}
             />
+            {page === CLOCK ? (
+              // Analog ↔ digital, one tap away (also in Settings → Face).
+              <QuietIconButton
+                icon={digital ? Clock3 : RectangleEllipsis}
+                label={digital ? 'Show analog clock' : 'Show digital clock'}
+                onPress={() => update({ face: digital ? 'analog' : 'digital' })}
+                style={{
+                  position: 'absolute',
+                  right: insets.right + EDGE,
+                  bottom: insets.bottom + EDGE,
+                }}
+              />
+            ) : null}
             <SettingsButton
               onPress={() => setSettingsOpen((open) => !open)}
               style={{

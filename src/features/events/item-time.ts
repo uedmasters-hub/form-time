@@ -188,3 +188,14 @@ export function newId(): string {
   }
   return id;
 }
+
+/**
+ * The next five-minute mark at least five minutes away, as wall time —
+ * where something new starts when no time was picked. (Time zones are
+ * offset by whole quarter hours, so an instant on a five-minute boundary is
+ * on one in local time too.)
+ */
+export function nextSlot(now: number, timeZone: string) {
+  const at = Math.ceil((now + 5 * 60_000) / 300_000) * 300_000;
+  return instantToWall(at, timeZone);
+}

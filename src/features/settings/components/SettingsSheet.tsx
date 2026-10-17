@@ -1,4 +1,4 @@
-import { Moon, RotateCcw, Sun, SunMoon } from 'lucide-react-native';
+import { Clock3, Moon, RectangleEllipsis, RotateCcw, Sun, SunMoon } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Sheet, SheetSection as Section, SheetSwitch } from '@/components/Sheet';
@@ -13,7 +13,7 @@ import { useAccount } from '@/features/account/AccountProvider';
 import { AccountSection } from '@/features/account/components/AccountSection';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-import { APPEARANCES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
+import { APPEARANCES, FACES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
 import { useSettings } from '../SettingsProvider';
 import { DialSwatch } from './DialSwatch';
 import { OptionGroup } from './OptionGroup';
@@ -24,6 +24,7 @@ type SettingsSheetProps = {
 };
 
 const APPEARANCE_ICONS = { day: Sun, night: Moon, system: SunMoon } as const;
+const FACE_ICONS = { analog: Clock3, digital: RectangleEllipsis } as const;
 
 /**
  * Clock and calendar settings. Every change applies immediately — the clock
@@ -73,6 +74,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           first
         />
       </View>
+
+      <Section label="Face">
+        <OptionGroup
+          label="Clock face"
+          options={FACES.map((f) => ({ ...f, icon: FACE_ICONS[f.id] }))}
+          value={settings.face}
+          onChange={(face) => update({ face })}
+          theme={ui}
+        />
+      </Section>
 
       {showDials ? (
         <Section label={settings.appearance === 'system' ? 'Dial · day' : 'Dial'}>
@@ -127,20 +138,25 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         </Section>
       ) : null}
 
-      <Section label="Movement">
-        <OptionGroup
-          label="Movement"
-          options={MOVEMENTS}
-          value={settings.movement}
-          onChange={(movement) => update({ movement })}
-          theme={ui}
-        />
-        {reducedMotion ? (
-          <Text style={[styles.note, { color: ui.muted }]}>
-            Reduce motion is on, so the second hand steps once a second.
-          </Text>
-        ) : null}
-      </Section>
+      {/* Movement drives the second hand; the digital face has none. */}
+      {settings.face === 'analog' ? (
+        <>
+          <Section label="Movement">
+            <OptionGroup
+              label="Movement"
+              options={MOVEMENTS}
+              value={settings.movement}
+              onChange={(movement) => update({ movement })}
+              theme={ui}
+            />
+            {reducedMotion ? (
+              <Text style={[styles.note, { color: ui.muted }]}>
+                Reduce motion is on, so the second hand steps once a second.
+              </Text>
+            ) : null}
+          </Section>
+        </>
+      ) : null}
 
       <Section label="Size">
         <OptionGroup
@@ -154,7 +170,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
       <View style={styles.switchGap}>
         <SheetSwitch
-          label="Second hand"
+          label={settings.face === 'digital' ? 'Seconds' : 'Second hand'}
           value={settings.secondHand}
           onChange={(secondHand) => update({ secondHand })}
           first

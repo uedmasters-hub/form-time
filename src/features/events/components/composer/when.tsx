@@ -1,14 +1,12 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 
 import { QuietIconButton } from '@/components/QuietIconButton';
 import { SheetSwitch } from '@/components/Sheet';
 import { addDays, isSameDay, type CalendarDate } from '@/features/calendar/calendar-date';
 import type { CalendarSystem } from '@/features/calendar/calendar-system';
-import { Numeral } from '@/features/clock/components/Numeral';
-import { GLYPH_HEIGHT, layoutNumeral } from '@/features/clock/numerals';
+import { TimeNumerals } from '@/features/clock/components/TimeNumerals';
 import { useSettings } from '@/features/settings/SettingsProvider';
 
 import { formatWallTime, type WallTime } from '../../item-time';
@@ -117,66 +115,6 @@ export function WhenStamp({
         ) : null}
       </View>
     </Pressable>
-  );
-}
-
-/** "3:00" or "15:00:28" in the dial's numerals, with a two-dot colon. */
-function TimeNumerals({
-  time,
-  hour12,
-  withSeconds,
-  color,
-  height = 28,
-}: {
-  time: WallTime;
-  hour12: boolean;
-  withSeconds: boolean;
-  color: string;
-  height?: number;
-}) {
-  const stroke = Math.max(2.4, height * 0.11);
-  const hour = hour12 ? time.hours % 12 || 12 : time.hours;
-  const parts = [String(hour), pad(time.minutes), ...(withSeconds ? [pad(time.seconds)] : [])];
-  const widths = parts.map((p) => (layoutNumeral(p).width / GLYPH_HEIGHT) * height);
-  const colon = height * 0.36;
-  const width = widths.reduce((a, b) => a + b, 0) + colon * (parts.length - 1) + stroke * 2;
-  const svgHeight = height + stroke * 2;
-  const mid = svgHeight / 2;
-
-  let x = stroke;
-  const nodes = parts.map((text, i) => {
-    const w = widths[i];
-    const numeral = (
-      <Numeral
-        key={`n${i}`}
-        text={text}
-        x={x + w / 2}
-        y={mid}
-        height={height}
-        strokeWidth={stroke}
-        color={color}
-      />
-    );
-    x += w;
-    if (i === parts.length - 1) return numeral;
-    const cx = x + colon / 2;
-    x += colon;
-    return [
-      numeral,
-      <Circle key={`a${i}`} cx={cx} cy={mid - height * 0.2} r={stroke * 0.6} fill={color} />,
-      <Circle key={`b${i}`} cx={cx} cy={mid + height * 0.2} r={stroke * 0.6} fill={color} />,
-    ];
-  });
-
-  return (
-    // The stamp's label already reads the time; hide the drawing from
-    // assistive tech. (On a View: react-native-svg passes props straight to
-    // the DOM on web, where React Native's accessibility props don't exist.)
-    <View aria-hidden>
-      <Svg width={width} height={svgHeight}>
-        {nodes}
-      </Svg>
-    </View>
   );
 }
 

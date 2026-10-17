@@ -21,6 +21,7 @@ import {
   formatWallTime,
   hourAngle,
   instantToWall,
+  nextSlot,
   placeIn,
   timeFromDial,
   type WallTime,
@@ -107,11 +108,8 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
     const info = pressInfo.current;
     pressInfo.current = null;
     if (info && Date.now() - info.at < STALE_PRESS_MS) return openAt(info);
-    // Keyboard: the next five-minute mark at least five minutes away.
-    // (Time zones are offset by whole quarter hours, so instants on a
-    // five-minute boundary are on one in local time too.)
-    const at = Math.ceil((Date.now() + 5 * 60_000) / 300_000) * 300_000;
-    const { date, time } = instantToWall(at, timeZone);
+    // Keyboard: the next five-minute mark.
+    const { date, time } = nextSlot(Date.now(), timeZone);
     compose({ mode: 'new', date, time });
   });
 

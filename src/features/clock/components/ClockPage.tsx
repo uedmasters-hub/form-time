@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { useComposer } from '@/features/events/ComposerProvider';
 import { ClockTimePicker } from '@/features/events/components/ClockTimePicker';
+import { UpNext } from '@/features/events/components/UpNext';
+import { nextSlot, uses12Hour } from '@/features/events/item-time';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
 
 import { AnalogClock } from './AnalogClock';
+import { DigitalClock } from './DigitalClock';
 
 const MAX_CLOCK_SIZE = 1000;
 /** Compact shows the clock at this share of the classic size. */
@@ -30,6 +34,7 @@ type ClockPageProps = {
 
 export function ClockPage({ paused = false }: ClockPageProps) {
   const { settings, dialTheme, uiTheme, timeZone } = useSettings();
+  const { compose } = useComposer();
   const [area, setArea] = useState({ width: 0, height: 0 });
 
   const onLayout = ({ nativeEvent }: LayoutChangeEvent) => {
@@ -38,6 +43,32 @@ export function ClockPage({ paused = false }: ClockPageProps) {
   };
 
   const size = area.width > 0 ? clockSizeFor(area.width, area.height, settings.size) : 0;
+
+  if (settings.face === 'digital') {
+    return (
+      <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>
+        {area.width > 0 ? (
+          <DigitalClock
+            width={area.width}
+            // Keep clear of the corner controls above and below.
+            height={area.height - 120}
+            theme={dialTheme}
+            timeZone={timeZone}
+            hour12={uses12Hour()}
+            showSeconds={settings.secondHand}
+            compact={settings.size === 'compact'}
+            flat={!settings.depth}
+            paused={paused}
+            onPressTime={() => {
+              const { date, time } = nextSlot(Date.now(), timeZone);
+              compose({ mode: 'new', date, time });
+            }}
+            aside={(now, { short }) => <UpNext now={now} short={short} />}
+          />
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>

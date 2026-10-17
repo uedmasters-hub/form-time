@@ -7,8 +7,13 @@
  * localStorage (items, settings, the account session) persists between
  * launches, and Supabase sync works as it does in a browser. Nothing in the
  * web app knows it's in a desktop window.
+ *
+ * It opens in full screen, for the clock on its own; a faint ✕ in the top
+ * corner (preload.cjs) quits, and Escape, F11 (Windows) or ⌃⌘F (macOS)
+ * leave full screen. Leave full screen and quit, and it opens in a window
+ * next time.
  */
-const { app, BrowserWindow, Menu, net, protocol, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, net, protocol, screen, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -58,6 +63,10 @@ function fileFor(pathname) {
 // ── Window size and place, remembered between launches ──────────────────
 
 const stateFile = () => path.join(app.getPath('userData'), 'window.json');
+/** The window's size when it isn't full screen, until the user changes it. */
+const DEFAULT_SIZE = { width: 1280, height: 820 };
+/** v2: full screen became the default; older files never asked for it. */
+const STATE_VERSION = 2;
 
 function savedBounds() {
   try {
@@ -71,7 +80,8 @@ function savedBounds() {
         saved.y < a.y + a.height - 80
       );
     });
-    return visible ? saved : null;
+    if (saved.v !== STATE_VERSION) delete saved.fullScreen;
+    return visible ? saved : { fullScreen: saved.fullScreen };
   } catch {
     return null;
   }
@@ -80,11 +90,22 @@ function savedBounds() {
 function remember(win) {
   const save = () => {
     if (win.isDestroyed() || win.isMinimized()) return;
-    const bounds = win.isFullScreen() || win.isMaximized() ? win.getNormalBounds() : win.getBounds();
+    let bounds = win.isFullScreen() || win.isMaximized() ? win.getNormalBounds() : win.getBounds();
+    // Opened in full screen and never a window since: some systems report
+    // the whole screen as its window size. Keep the default window instead.
+    const area = screen.getDisplayMatching(bounds).bounds;
+    if (win.isFullScreen() && bounds.width >= area.width && bounds.height >= area.height) {
+      bounds = { width: DEFAULT_SIZE.width, height: DEFAULT_SIZE.height };
+    }
     try {
       fs.writeFileSync(
         stateFile(),
-        JSON.stringify({ ...bounds, maximized: win.isMaximized(), fullScreen: win.isFullScreen() }),
+        JSON.stringify({
+          v: STATE_VERSION,
+          ...bounds,
+          maximized: win.isMaximized(),
+          fullScreen: win.isFullScreen(),
+        }),
       );
     } catch {
       // not important enough to fail over
@@ -100,10 +121,12 @@ let mainWindow = null;
 function createWindow() {
   const saved = savedBounds();
   const win = new BrowserWindow({
-    width: saved?.width ?? 1280,
-    height: saved?.height ?? 820,
+    width: saved?.width ?? DEFAULT_SIZE.width,
+    height: saved?.height ?? DEFAULT_SIZE.height,
     x: saved?.x,
     y: saved?.y,
+    // Full screen unless it was last closed in a window.
+    fullscreen: saved?.fullScreen ?? true,
     minWidth: 360,
     minHeight: 560,
     title: 'FORM / TIME',
@@ -111,16 +134,28 @@ function createWindow() {
     autoHideMenuBar: true, // Windows: Alt shows the menu
     show: false,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // The clock's sounds (ticking, the hourly chime) may start before a click.
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
   if (saved?.maximized) win.maximize();
-  if (saved?.fullScreen) win.setFullScreen(true);
   win.once('ready-to-show', () => win.show());
   remember(win);
+
+  // The exit control shows only in full screen.
+  const tellFullScreen = () => win.webContents.send('formtime:full-screen', win.isFullScreen());
+  win.on('enter-full-screen', tellFullScreen);
+  win.on('leave-full-screen', tellFullScreen);
+  win.webContents.on('did-finish-load', () => {
+    tellFullScreen();
+    // An app the user opened counts as wanted: let its sounds start without a click.
+    void win.webContents.executeJavaScript('void 0', true).catch(() => undefined);
+  });
 
   // Links (a meeting link, a place) open in the default browser, never in here.
   const isOwn = (url) => url.startsWith(START_URL);
@@ -147,7 +182,10 @@ function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
     ...(isMac ? [{ role: 'appMenu' }] : []),
-    { role: 'fileMenu' },
+    // macOS: Close Window (⌘W), Quit in the app menu (⌘Q). Windows: Exit (Ctrl+Q, or Alt+F4).
+    isMac
+      ? { role: 'fileMenu' }
+      : { label: 'File', submenu: [{ role: 'quit', label: 'Exit', accelerator: 'Ctrl+Q' }] },
     // Copy and paste in the composer need these on macOS.
     { role: 'editMenu' },
     {
@@ -160,6 +198,7 @@ function buildMenu() {
         { role: 'zoomIn' },
         { role: 'zoomOut' },
         { type: 'separator' },
+        // ⌃⌘F on macOS, F11 on Windows. Escape also leaves full screen (preload.cjs).
         { role: 'togglefullscreen' },
       ],
     },
@@ -197,6 +236,19 @@ if (!app.requestSingleInstanceLock()) {
       headers.set('Content-Type', 'text/html; charset=utf-8');
       headers.set('Content-Security-Policy', CSP);
       return new Response(response.body, { status: response.status, headers });
+    });
+    // From the full-screen exit control and Escape (preload.cjs), on our own pages only.
+    const fromApp = (event) => (event.senderFrame?.url ?? '').startsWith(START_URL);
+    ipcMain.on('formtime:quit', (event) => {
+      if (fromApp(event)) app.quit();
+    });
+    ipcMain.on('formtime:leave-full-screen', (event) => {
+      if (!fromApp(event)) return;
+      BrowserWindow.fromWebContents(event.sender)?.setFullScreen(false);
+    });
+    ipcMain.on('formtime:ready', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      if (win) event.sender.send('formtime:full-screen', win.isFullScreen());
     });
     buildMenu();
     createWindow();

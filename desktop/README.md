@@ -29,8 +29,20 @@ npm run dist:win     # on Windows → release/FORM TIME Setup 1.0.0.exe (x64 + a
 
 ## How it behaves
 
-- One window, remembered size and place, full screen with ⌃⌘F / F11.
+- Opens in full screen, the clock on its own. A faint ✕ in the top-left
+  corner (only in full screen) quits: barely there at rest, a little
+  stronger while the pointer moves, clear on hover or keyboard focus (it's
+  first in the Tab order), with a short hint beside it. It's drawn by the
+  desktop app (`preload.cjs`); the web app has no part in it.
+- Leave full screen with Escape (when no panel is open; with one open,
+  Escape closes the panel), F11 on Windows, ⌃⌘F or the green button on
+  macOS, or View → Toggle Full Screen. Quit with the ✕, ⌘Q / Ctrl+Q,
+  Alt+F4, or File → Exit.
+- Leave full screen and quit, and it opens in a window next time (size and
+  place remembered); quit in full screen, and it opens in full screen.
   Opening the app again brings the window forward.
+- Sounds (Settings → Sound) can start without a click first, unlike in a
+  browser tab.
 - Items, settings and the account session persist between launches
   (localStorage on the `app://form-time` origin) and sync with Supabase as on
   the web.

@@ -4,9 +4,10 @@ import { formatWallTime, instantToWall, placeIn } from './item-time';
 import type { CalendarItem } from './types';
 
 /**
- * What's coming up, for the digital watch: the next alarm, then today's
- * items (all-day first, then by time) and tomorrow's, with "Now" or
- * "in 12 min" on anything close.
+ * What's coming up, for the digital watch, soonest first: anything under
+ * way ("Now"), then today's and tomorrow's timed items (alarms included) in
+ * time order, then today's all-day items. "in 12 min" marks anything
+ * within the hour.
  */
 export type Upcoming = {
   item: CalendarItem;
@@ -17,8 +18,6 @@ export type Upcoming = {
 };
 
 export type UpNext = {
-  /** The next alarm within a day. */
-  alarm: Upcoming | null;
   rows: Upcoming[];
   /** How many more there are beyond `rows`. */
   more: number;
@@ -27,7 +26,6 @@ export type UpNext = {
 /** Items that started this recently still show, as "Now". */
 const NOW_WINDOW_MS = 10 * 60_000;
 const SOON_MS = 60 * 60_000;
-const ALARM_WINDOW_MS = 24 * 3600_000;
 
 export function upNext(
   items: CalendarItem[],
@@ -45,8 +43,9 @@ export function upNext(
     if (item.deletedAt) continue;
     const placed = placeIn(item, timeZone);
     if (!item.startsAt || !placed.time) {
+      // All day: after the timed items, in the order they were made.
       if (placed.date === todayISO) {
-        entries.push({ item, when: 'All day', relative: null, at: -Infinity });
+        entries.push({ item, when: 'All day', relative: null, at: Infinity });
       }
       continue;
     }
@@ -67,17 +66,11 @@ export function upNext(
             : null,
     });
   }
-  entries.sort((a, b) => a.at - b.at);
-
-  const alarmEntry =
-    entries.find((e) => e.item.kind === 'alarm' && e.at > now && e.at - now <= ALARM_WINDOW_MS) ??
-    null;
-  const rest = entries.filter((e) => e !== alarmEntry);
-  const strip = ({ at: _at, ...u }: Entry): Upcoming => u;
+  // Stable: equal times (and all-day items) keep their order.
+  entries.sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1));
 
   return {
-    alarm: alarmEntry ? strip(alarmEntry) : null,
-    rows: rest.slice(0, limit).map(strip),
-    more: Math.max(0, rest.length - limit),
+    rows: entries.slice(0, limit).map(({ at: _at, ...u }) => u),
+    more: Math.max(0, entries.length - limit),
   };
 }

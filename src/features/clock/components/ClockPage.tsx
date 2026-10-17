@@ -3,7 +3,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { useComposer } from '@/features/events/ComposerProvider';
 import { ClockTimePicker } from '@/features/events/components/ClockTimePicker';
-import { UpNext } from '@/features/events/components/UpNext';
+import { WatchDate, WatchUpcoming } from '@/features/events/components/UpNext';
 import { nextSlot, uses12Hour } from '@/features/events/item-time';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
@@ -50,8 +50,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
         {area.width > 0 ? (
           <DigitalClock
             width={area.width}
-            // Keep clear of the corner controls above and below.
-            height={area.height - 120}
+            height={area.height}
             theme={dialTheme}
             timeZone={timeZone}
             hour12={uses12Hour()}
@@ -63,7 +62,10 @@ export function ClockPage({ paused = false }: ClockPageProps) {
               const { date, time } = nextSlot(Date.now(), timeZone);
               compose({ mode: 'new', date, time });
             }}
-            aside={(now, { short }) => <UpNext now={now} short={short} />}
+            topRight={(now, { numeralHeight }) => (
+              <WatchDate now={now} numeralHeight={numeralHeight} />
+            )}
+            bottomRight={(now, { rows }) => <WatchUpcoming now={now} limit={rows} />}
           />
         ) : null}
       </View>

@@ -14,11 +14,22 @@ type NumeralProps = {
   color: string;
   /** Rotation about the numeral's centre, in degrees. */
   rotation?: number;
+  /** Every digit in an equal cell, so changing digits never change the width. */
+  tabular?: boolean;
 };
 
 /** A string of FORM / TIME numerals, centred on (x, y). */
-export function Numeral({ text, x, y, height, strokeWidth, color, rotation = 0 }: NumeralProps) {
-  const layout = layoutNumeral(text);
+export function Numeral({
+  text,
+  x,
+  y,
+  height,
+  strokeWidth,
+  color,
+  rotation = 0,
+  tabular = false,
+}: NumeralProps) {
+  const layout = layoutNumeral(text, { tabular });
   const scale = height / GLYPH_HEIGHT;
 
   return (

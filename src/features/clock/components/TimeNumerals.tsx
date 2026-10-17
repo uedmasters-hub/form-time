@@ -25,10 +25,13 @@ function partsOf(time: WallTimeParts, hour12: boolean, withSeconds: boolean, pad
 export function timeNumeralsWidth(
   time: WallTimeParts,
   height: number,
-  { hour12 = false, withSeconds = false, padHour = false } = {},
+  { hour12 = false, withSeconds = false, padHour = false, tabular = false } = {},
 ): number {
   const parts = partsOf(time, hour12, withSeconds, padHour);
-  const digits = parts.reduce((w, p) => w + (layoutNumeral(p).width / GLYPH_HEIGHT) * height, 0);
+  const digits = parts.reduce(
+    (w, p) => w + (layoutNumeral(p, { tabular }).width / GLYPH_HEIGHT) * height,
+    0,
+  );
   return digits + height * COLON * (parts.length - 1) + strokeFor(height) * 2;
 }
 
@@ -45,6 +48,7 @@ export function TimeNumerals({
   padHour = false,
   glow,
   idPrefix = 'ft-time',
+  tabular = false,
 }: {
   time: WallTimeParts;
   hour12: boolean;
@@ -56,10 +60,12 @@ export function TimeNumerals({
   /** A soft halo beneath the numerals (night dials with depth on). */
   glow?: { color: string; opacity: number };
   idPrefix?: string;
+  /** Equal-width digits: the drawing keeps one width whatever the time. */
+  tabular?: boolean;
 }) {
   const stroke = strokeFor(height);
   const parts = partsOf(time, hour12, withSeconds, padHour);
-  const widths = parts.map((p) => (layoutNumeral(p).width / GLYPH_HEIGHT) * height);
+  const widths = parts.map((p) => (layoutNumeral(p, { tabular }).width / GLYPH_HEIGHT) * height);
   const colon = height * COLON;
   const width = widths.reduce((a, b) => a + b, 0) + colon * (parts.length - 1) + stroke * 2;
   const svgHeight = height + stroke * 2;
@@ -81,6 +87,7 @@ export function TimeNumerals({
           height={height}
           strokeWidth={stroke}
           color={ink}
+          tabular={tabular}
         />
       );
       x += w;

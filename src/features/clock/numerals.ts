@@ -67,18 +67,34 @@ export type NumeralLayout = {
   glyphs: { d: string; x: number }[];
 };
 
-export function layoutNumeral(text: string): NumeralLayout {
+/** The widest digit's box; every digit gets this much room when tabular. */
+const TABULAR_CELL = Math.max(...Object.values(GLYPHS).map((g) => g.width));
+
+/**
+ * The "1" for tabular figures. A bare stroke would sit stranded in a full
+ * cell, so it gains a short flag — the same diagonal as the 4's — and
+ * fills its cell the way the other digits do.
+ */
+const TABULAR_ONE: Glyph = { width: 64, d: 'M2 34 L58 0 V100' };
+
+/**
+ * Lays out a string of digits. Proportional by default (a "1" is just its
+ * stroke); `tabular` gives every digit the same cell, centred in it, so a
+ * changing number (a running clock) never changes width.
+ */
+export function layoutNumeral(text: string, { tabular = false } = {}): NumeralLayout {
   const glyphs: NumeralLayout['glyphs'] = [];
   let cursor = 0;
 
   for (const char of text) {
-    const glyph = GLYPHS[char];
+    const glyph = tabular && char === '1' ? TABULAR_ONE : GLYPHS[char];
     if (!glyph) {
       throw new Error(`FORM / TIME numerals: no glyph for "${char}"`);
     }
     if (glyphs.length > 0) cursor += TRACKING;
-    glyphs.push({ d: glyph.d, x: cursor });
-    cursor += glyph.width;
+    const cell = tabular ? TABULAR_CELL : glyph.width;
+    glyphs.push({ d: glyph.d, x: cursor + (cell - glyph.width) / 2 });
+    cursor += cell;
   }
 
   return { width: cursor, glyphs };

@@ -3,10 +3,11 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { useComposer } from '@/features/events/ComposerProvider';
 import { ClockTimePicker } from '@/features/events/components/ClockTimePicker';
-import { WatchDate, WatchUpcoming } from '@/features/events/components/UpNext';
+import { TodaySidebar } from '@/features/events/components/UpNext';
 import { nextSlot, uses12Hour } from '@/features/events/item-time';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
+import { sidebarLayout, type SidebarLayout } from '@/features/sidebar/sidebar-layout';
 
 import { AnalogClock } from './AnalogClock';
 import { DigitalClock } from './DigitalClock';
@@ -14,9 +15,11 @@ import { DigitalClock } from './DigitalClock';
 const MAX_CLOCK_SIZE = 1000;
 /** Compact shows the clock at this share of the classic size. */
 const COMPACT_SCALE = 0.62;
+/** Phones: the dial keeps at least this share of the page's width. */
+const MIN_PHONE_DIAL = 0.75;
 
 /**
- * Size the clock from the space this page actually has, measured after
+ * Size the clock from the space this page leaves it, measured after
  * layout. Reading the window size during render broke static web output:
  * the server rendered at 0×0 and the client never corrected it.
  */
@@ -42,7 +45,33 @@ export function ClockPage({ paused = false }: ClockPageProps) {
     setArea((a) => (a.width === width && a.height === height ? a : { width, height }));
   };
 
-  const size = area.width > 0 ? clockSizeFor(area.width, area.height, settings.size) : 0;
+  // The side panel (today, what's next, festivals) has its place on both
+  // faces; the clock takes the space it leaves.
+  const panel = { showDate: settings.showDayDate, showEvents: settings.showDayEvents };
+  let layout = sidebarLayout(area.width, area.height, panel);
+  const dialIn = (l: SidebarLayout) =>
+    clockSizeFor(
+      area.width - l.main.left - l.main.right,
+      area.height - l.main.top - l.main.bottom,
+      'classic',
+    );
+  // Phones: the dial needs a square. The list gives up rows (down to one)
+  // until the dial is at least MIN_PHONE_DIAL of the width.
+  if (settings.face === 'analog' && !layout.wide) {
+    const wanted = (area.width - layout.side * 2) * MIN_PHONE_DIAL;
+    while (layout.rows > 1 && dialIn(layout) < wanted) {
+      layout = sidebarLayout(area.width, area.height, { ...panel, maxRows: layout.rows - 1 });
+    }
+  }
+  const { main } = layout;
+  const size =
+    area.width > 0
+      ? clockSizeFor(
+          area.width - main.left - main.right,
+          area.height - main.top - main.bottom,
+          settings.size,
+        )
+      : 0;
 
   if (settings.face === 'digital') {
     return (
@@ -51,6 +80,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
           <DigitalClock
             width={area.width}
             height={area.height}
+            layout={layout}
             theme={dialTheme}
             timeZone={timeZone}
             hour12={uses12Hour()}
@@ -62,12 +92,9 @@ export function ClockPage({ paused = false }: ClockPageProps) {
               const { date, time } = nextSlot(Date.now(), timeZone);
               compose({ mode: 'new', date, time });
             }}
-            topRight={(now, { numeralHeight }) => (
-              <WatchDate now={now} numeralHeight={numeralHeight} />
-            )}
-            bottomRight={(now, { rows }) => <WatchUpcoming now={now} limit={rows} />}
           />
         ) : null}
+        {area.width > 0 ? <TodaySidebar layout={layout} paused={paused} /> : null}
       </View>
     );
   }
@@ -75,19 +102,22 @@ export function ClockPage({ paused = false }: ClockPageProps) {
   return (
     <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>
       {size > 0 ? (
-        // Point at the dial to add something at that time.
-        <ClockTimePicker size={size} dialTheme={dialTheme} ui={uiTheme} timeZone={timeZone}>
-          <AnalogClock
-            size={size}
-            theme={dialTheme}
-            movement={settings.movement}
-            showSecondHand={settings.secondHand}
-            timeZone={timeZone}
-            paused={paused}
-            flat={!settings.depth}
-          />
-        </ClockTimePicker>
+        <View style={[styles.main, main]}>
+          {/* Point at the dial to add something at that time. */}
+          <ClockTimePicker size={size} dialTheme={dialTheme} ui={uiTheme} timeZone={timeZone}>
+            <AnalogClock
+              size={size}
+              theme={dialTheme}
+              movement={settings.movement}
+              showSecondHand={settings.secondHand}
+              timeZone={timeZone}
+              paused={paused}
+              flat={!settings.depth}
+            />
+          </ClockTimePicker>
+        </View>
       ) : null}
+      {area.width > 0 ? <TodaySidebar layout={layout} paused={paused} /> : null}
     </View>
   );
 }
@@ -95,6 +125,12 @@ export function ClockPage({ paused = false }: ClockPageProps) {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** The dial's own area, beside or between the side panel's halves. */
+  main: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },

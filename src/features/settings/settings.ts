@@ -39,9 +39,9 @@ export type Settings = {
   showPublicHolidays: boolean;
   showRestrictedHolidays: boolean;
   showFestivals: boolean;
-  /** The calendar's day panel: the selected day's weekday, numeral and month. */
+  /** The side panel (clock and calendar): the day's weekday, numeral and month. */
   showDayDate: boolean;
-  /** The calendar's day panel: that day's items, holidays and festivals. */
+  /** The side panel (clock and calendar): that day's items, holidays and festivals. */
   showDayEvents: boolean;
 };
 

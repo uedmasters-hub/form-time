@@ -1,6 +1,8 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
+
+import type { SidebarLayout } from '@/features/sidebar/sidebar-layout';
 
 import type { DialTheme } from '../dial-theme';
 import { GLYPH_HEIGHT, layoutNumeral } from '../numerals';
@@ -12,6 +14,8 @@ type DigitalClockProps = {
   /** The whole page area. */
   width: number;
   height: number;
+  /** The side panel's place; the time takes the space it leaves (`main`). */
+  layout: SidebarLayout;
   theme: DialTheme;
   timeZone: string;
   hour12: boolean;
@@ -23,21 +27,7 @@ type DigitalClockProps = {
   paused: boolean;
   /** Pressing the time (e.g. to add something). */
   onPressTime?: () => void;
-  /** Top-right corner: the date, with its numeral this tall. */
-  topRight?: (now: Date, layout: { numeralHeight: number }) => ReactNode;
-  /** Bottom-right corner: what's coming up, `rows` of it at most. */
-  bottomRight?: (now: Date, layout: { rows: number }) => ReactNode;
 };
-
-/** Bands kept clear for the corner controls (region code, settings, switch). */
-const TOP = 72;
-const BOTTOM = 76;
-/** Wide layouts: the time on the left, the corners' column on the right. */
-const WIDE_MIN_WIDTH = 720;
-const COLUMN_GAP = 64;
-/** Space the upcoming list reserves per row and for its heading. */
-const ROW = 66;
-const HEADING = 32;
 
 const ZERO: WallTimeParts = { hours: 0, minutes: 0, seconds: 0 };
 
@@ -53,22 +43,16 @@ function wallTime(now: Date, timeZone: string): WallTimeParts {
   return { hours: get('hour'), minutes: get('minute'), seconds: get('second') };
 }
 
-/** Height of the date block (DayHeading) for a numeral this tall. */
-function dateBlockHeight(numeral: number) {
-  const stroke = Math.max(3, numeral * 0.17);
-  return 16 + 14 + numeral + stroke * 2 + 12 + 21 + 21;
-}
-
 /**
  * The digital face. Built so nothing moves: the time sits centred in an
  * area of its own, with equal-width digits and a fixed-width seconds
  * column, so it keeps one size and one place as the seconds, minutes and
- * the list change. The date takes the top-right corner and what's coming
- * up the bottom-right, in space reserved for them.
+ * the list change. The side panel (drawn by the page) has space of its own.
  */
 export function DigitalClock({
   width,
   height,
+  layout,
   theme,
   timeZone,
   hour12,
@@ -77,32 +61,12 @@ export function DigitalClock({
   flat,
   paused,
   onPressTime,
-  topRight,
-  bottomRight,
 }: DigitalClockProps) {
   const now = useClockTime('quartz', paused);
   const time = wallTime(now, timeZone);
-  const wide = width >= WIDE_MIN_WIDTH && width >= height * 1.15;
-  const side = wide ? 48 : 20;
-
-  // The corners.
-  const column = wide ? Math.round(Math.min(320, Math.max(240, width * 0.24))) : width - side * 2;
-  const dateNumeral = wide ? 56 : 40;
-  const dateHeight = dateBlockHeight(dateNumeral);
-  const rows = wide
-    ? Math.max(
-        1,
-        Math.min(4, Math.floor((height - TOP - BOTTOM - dateHeight - 40 - HEADING) / ROW)),
-      )
-    : height < 700
-      ? 2
-      : 3;
-  const listHeight = HEADING + rows * ROW;
-
-  // The time's own area: beside the column (wide) or between the corners (narrow).
-  const area = wide
-    ? { left: side, right: side + column + COLUMN_GAP, top: TOP, bottom: BOTTOM }
-    : { left: side, right: side, top: TOP + dateHeight + 16, bottom: BOTTOM + listHeight + 16 };
+  const wide = layout.wide;
+  // The time's own area: beside the panel (wide) or between its halves (narrow).
+  const area = layout.main;
   const areaWidth = width - area.left - area.right;
   const areaHeight = height - area.top - area.bottom;
 
@@ -209,17 +173,6 @@ export function DigitalClock({
           </View>
         )}
       </View>
-
-      {topRight ? (
-        <View style={[styles.corner, { top: TOP, right: side, width: column }]}>
-          {topRight(now, { numeralHeight: dateNumeral })}
-        </View>
-      ) : null}
-      {bottomRight ? (
-        <View style={[styles.corner, { bottom: BOTTOM, right: side, width: column }]}>
-          {bottomRight(now, { rows })}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -263,5 +216,4 @@ const styles = StyleSheet.create({
   side: { justifyContent: 'space-between' },
   meridiem: { fontWeight: '600', letterSpacing: 1.6 },
   hovered: { opacity: 0.85 },
-  corner: { position: 'absolute' },
 });

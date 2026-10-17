@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 
@@ -7,7 +7,7 @@ import type { CalendarDate } from '../calendar-date';
 import type { CalendarSystem } from '../calendar-system';
 import type { CalendarTheme } from '../calendar-theme';
 import { DayHeading } from './DayHeading';
-import { InfoEmpty, InfoHeading, InfoRow } from './InfoList';
+import { InfoAside, InfoEmpty, InfoHeading, InfoRow } from './InfoList';
 
 /** One of the user's own items on this day, ready to show. */
 export type DayItem = {
@@ -113,70 +113,141 @@ export function DayPanel({
 
       {showEvents ? (
         <View style={[styles.lists, showDate && { marginTop: 24 * scale }]}>
-          <InfoHeading
-            label="Events"
+          <DayLists
+            items={items}
+            holidays={holidays}
+            kindLabels={kindLabels}
             theme={theme}
             align={align}
             scale={scale}
+            onOpenItem={onOpenItem}
             aside={
               showDate || !actions ? undefined : (
                 <View style={[styles.actions, styles.asideActions]}>{actions}</View>
               )
             }
           />
-          {items.length === 0 ? (
-            <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale} />
-          ) : (
-            items.map((item) => (
-              <InfoRow
-                key={item.id}
-                kind={`${item.kindLabel} · ${item.when}`}
-                title={item.title}
-                detail={item.place ? placeLabel(item.place) : undefined}
-                theme={theme}
-                align={align}
-                scale={scale}
-                bell={item.hasReminder}
-                titleLines={2}
-                onPress={() => onOpenItem?.(item.id)}
-                accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
-                  item.place ? `, ${item.place}` : ''
-                }${item.hasReminder ? ', reminder set' : ''}`}
-                accessibilityHint="Opens it to edit or delete"
-              />
-            ))
-          )}
-
-          {holidays.length > 0 ? (
-            <>
-              <View style={[styles.section, { marginTop: 14 * scale }]}>
-                <InfoHeading
-                  label="Holidays & festivals"
-                  theme={theme}
-                  align={align}
-                  scale={scale}
-                />
-              </View>
-              {holidays.map((h, i) => (
-                <InfoRow
-                  key={`${h.name}-${i}`}
-                  kind={kindLabels[h.kind]}
-                  title={h.name}
-                  detail={describe(h).replace(/^, /, '') || undefined}
-                  theme={theme}
-                  align={align}
-                  scale={scale}
-                  // Official holidays in the accent; observances stay quiet.
-                  kindColor={h.kind === 'public' ? theme.accent : theme.muted}
-                  markColor={h.kind === 'public' ? theme.accent : theme.muted}
-                  titleLines={2}
-                  accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
-                />
-              ))}
-            </>
-          ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * The lists under a day: "Events" (its own items, or "Nothing planned.")
+ * and, when it has any, "Holidays & festivals". The calendar's day panel
+ * and its side panel both use it.
+ */
+export function DayLists({
+  items,
+  holidays,
+  kindLabels,
+  theme,
+  align = 'end',
+  scale = 1,
+  onOpenItem,
+  aside,
+}: {
+  items: DayItem[];
+  holidays: DayHoliday[];
+  kindLabels: Record<HolidayKind, string>;
+  theme: CalendarTheme;
+  align?: 'start' | 'end';
+  scale?: number;
+  onOpenItem?: (id: string) => void;
+  /** Beside the "Events" heading (phones: Today, +). */
+  aside?: ReactNode;
+}) {
+  return (
+    <View style={styles.lists}>
+      <InfoHeading label="Events" theme={theme} align={align} scale={scale} aside={aside} />
+      {items.length === 0 ? (
+        <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale} />
+      ) : (
+        items.map((item) => (
+          <InfoRow
+            key={item.id}
+            kind={`${item.kindLabel} · ${item.when}`}
+            title={item.title}
+            detail={item.place ? placeLabel(item.place) : undefined}
+            theme={theme}
+            align={align}
+            scale={scale}
+            bell={item.hasReminder}
+            titleLines={2}
+            onPress={() => onOpenItem?.(item.id)}
+            accessibilityLabel={`${item.kindLabel}, ${item.when}: ${item.title}${
+              item.place ? `, ${item.place}` : ''
+            }${item.hasReminder ? ', reminder set' : ''}`}
+            accessibilityHint="Opens it to edit or delete"
+          />
+        ))
+      )}
+
+      {holidays.length > 0 ? (
+        <HolidayList
+          holidays={holidays}
+          kindLabels={kindLabels}
+          theme={theme}
+          align={align}
+          scale={scale}
+          style={{ marginTop: 14 * scale }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * "Holidays & festivals" and a day's observances, `limit` of them at most
+ * (with "+N more" beside the heading). Shared by the calendar and the clock.
+ */
+export function HolidayList({
+  holidays,
+  kindLabels,
+  theme,
+  align = 'end',
+  scale = 1,
+  limit = Infinity,
+  style,
+}: {
+  holidays: DayHoliday[];
+  kindLabels: Record<HolidayKind, string>;
+  theme: CalendarTheme;
+  align?: 'start' | 'end';
+  scale?: number;
+  limit?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const shown = holidays.slice(0, limit);
+  const more = holidays.length - shown.length;
+  return (
+    <View style={[styles.lists, style]}>
+      <InfoHeading
+        label="Holidays & festivals"
+        theme={theme}
+        align={align}
+        scale={scale}
+        aside={
+          more > 0 ? <InfoAside text={`+${more} more`} theme={theme} scale={scale} /> : undefined
+        }
+      />
+      {shown.map((h, i) => (
+        <InfoRow
+          key={`${h.name}-${i}`}
+          kind={kindLabels[h.kind]}
+          title={h.name}
+          detail={describe(h).replace(/^, /, '') || undefined}
+          theme={theme}
+          align={align}
+          scale={scale}
+          // Official holidays in the accent; observances stay quiet.
+          kindColor={h.kind === 'public' ? theme.accent : theme.muted}
+          markColor={h.kind === 'public' ? theme.accent : theme.muted}
+          titleLines={limit === Infinity ? 2 : 1}
+          accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
+        />
+      ))}
     </View>
   );
 }
@@ -199,7 +270,6 @@ const styles = StyleSheet.create({
   panel: { alignItems: 'flex-start' },
   panelEnd: { alignItems: 'flex-end' },
   lists: { alignSelf: 'stretch' },
-  section: { alignSelf: 'stretch' },
   // 44 pt targets on a small line: they overhang so the line keeps its height.
   actions: {
     flexDirection: 'row',

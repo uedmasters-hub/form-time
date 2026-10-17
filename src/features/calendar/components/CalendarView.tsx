@@ -12,6 +12,8 @@ import { BottomFade } from '@/features/pager/BottomFade';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
 import { regionOf } from '@/features/region/regions';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { Sidebar } from '@/features/sidebar/components/Sidebar';
+import { SIDEBAR_GAP, sidebarLayout } from '@/features/sidebar/sidebar-layout';
 
 import { isSameDay, sixWeeksFrom, toISODate, type CalendarDate } from '../calendar-date';
 import {
@@ -22,7 +24,8 @@ import {
 } from '../calendar-system';
 import { useToday } from '../use-today';
 import { NUMERAL_INSET } from './DayCell';
-import { DayPanel, type DayItem } from './DayPanel';
+import { DayHeading } from './DayHeading';
+import { DayLists, DayPanel, type DayItem } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
 import { MonthHeader, TodayButton } from './MonthHeader';
 
@@ -34,11 +37,7 @@ type CalendarViewProps = {
 
 /** Sizes at scale 1, the reference layout with 76 pt day cells. */
 const BASE_CELL = 76;
-const PANEL_WIDTH = 240;
-const COLUMN_GAP = 72;
 const HEADER_BLOCK = 48 + 20 + 28; // header row, its margin, weekday labels
-/** Lines the panel's first line up with the weekday labels' text. */
-const WEEKDAY_TEXT_OFFSET = 8;
 /**
  * Header type grows more slowly than the grid: big screens get bigger days,
  * not a shouting title.
@@ -51,7 +50,7 @@ const TOP_CONTROL_BAND = 44;
 
 /** Day-cell limits: wide layouts grow with the screen up to MAX_WIDE_CELL. */
 const MIN_CELL = 44;
-/** Below this, there's no room for a centred grid with the panel at the edge. */
+/** Below this, there's no room for the grid beside the side panel. */
 const MIN_CENTERED_CELL = 60;
 const MAX_WIDE_CELL = 124;
 const MAX_NARROW_CELL = 84;
@@ -204,22 +203,29 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
     compose({ mode: 'new', date: selected, time });
   };
 
-  // Wide: the grid is centred on the page and the day panel sits at the right
-  // edge, so each side of the grid must leave room for panel + gap. Everything
-  // beside the grid grows with the cells, so solve for the cell size that
-  // fills the height, or the width, first.
+  // Wide: the side panel (the same one the clock has) sits at the right
+  // edge and the grid is centred in the space it leaves, like the clock's
+  // dial. That space is kept whether or not the panel's halves are shown, so
+  // the grid never moves. Solve for the cell size that fills the height, or
+  // the width, first.
+  const panel = sidebarLayout(area.width, area.height, {
+    showDate: settings.showDayDate,
+    showEvents: settings.showDayEvents,
+  });
+  const gridLeft = panel.side;
+  const gridRight = panel.side + panel.column + SIDEBAR_GAP;
   const widePadding = 56;
   const centeredCell = Math.floor(
     clamp(
       Math.min(
         (area.height - topInset - bottomInset - widePadding * 2) / (6 + HEADER_BLOCK / BASE_CELL),
-        (area.width - widePadding * 2) / (7 + (2 * (PANEL_WIDTH + COLUMN_GAP)) / BASE_CELL),
+        (area.width - gridLeft - gridRight) / 7,
       ),
       MIN_CELL,
       MAX_WIDE_CELL,
     ),
   );
-  const wide = area.width >= 860 && area.height >= 560 && centeredCell >= MIN_CENTERED_CELL;
+  const wide = panel.wide && area.height >= 560 && centeredCell >= MIN_CENTERED_CELL;
   const padding = wide ? widePadding : 20;
 
   const cellSize = wide
@@ -240,6 +246,7 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   const subtitle = system.secondaryMonthLabel?.(visible);
   const headerHeight = (subtitle ? 54 : 48) * headerScale;
 
+  const selectedSecondary = system.secondaryDate?.(selected);
   const showToday = !sameMonth(visible, system.monthOf(today)) || !isSameDay(selected, today);
 
   return (
@@ -253,7 +260,9 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               // Narrow layouts: clear the region code in the top-right corner.
               paddingTop: topInset + padding + (wide ? 0 : TOP_CONTROL_BAND),
               paddingBottom: bottomInset + padding,
-              paddingHorizontal: padding,
+              ...(wide
+                ? { paddingLeft: gridLeft, paddingRight: gridRight }
+                : { paddingHorizontal: padding }),
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -297,39 +306,30 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
               />
             </View>
 
-            {/* The selected day — set apart at the right edge (wide) or below (narrow) */}
-            <View
-              style={
-                wide
-                  ? {
-                      position: 'absolute',
-                      right: 0,
-                      top: headerHeight + headerGap + WEEKDAY_TEXT_OFFSET * scale,
-                      width: PANEL_WIDTH * scale,
-                    }
-                  : {
-                      width: cellSize * 7,
-                      marginTop: 36 * scale,
-                      paddingHorizontal: numeralInset,
-                    }
-              }
-            >
-              <DayPanel
-                system={system}
-                date={selected}
-                isToday={isSameDay(selected, today)}
-                holidays={selectedHolidays}
-                kindLabels={kindLabels}
-                theme={theme}
-                numeralHeight={(wide ? 64 : 44) * scale}
-                scale={scale}
-                align={wide ? 'end' : 'start'}
-                items={selectedItems}
-                onOpenItem={openItem}
-                showDate={settings.showDayDate}
-                showEvents={settings.showDayEvents}
-                actions={
-                  wide ? undefined : (
+            {/* Narrow: the selected day below the grid (wide: the side panel) */}
+            {wide ? null : (
+              <View
+                style={{
+                  width: cellSize * 7,
+                  marginTop: 36 * scale,
+                  paddingHorizontal: numeralInset,
+                }}
+              >
+                <DayPanel
+                  system={system}
+                  date={selected}
+                  isToday={isSameDay(selected, today)}
+                  holidays={selectedHolidays}
+                  kindLabels={kindLabels}
+                  theme={theme}
+                  numeralHeight={44 * scale}
+                  scale={scale}
+                  align="start"
+                  items={selectedItems}
+                  onOpenItem={openItem}
+                  showDate={settings.showDayDate}
+                  showEvents={settings.showDayEvents}
+                  actions={
                     <>
                       {showToday ? <TodayButton theme={theme} onPress={goToday} /> : null}
                       <QuietIconButton
@@ -341,12 +341,47 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
                         touchRestOpacity={0.85}
                       />
                     </>
-                  )
-                }
-              />
-            </View>
+                  }
+                />
+              </View>
+            )}
           </View>
         </ScrollView>
+      ) : null}
+      {/* Wide: the selected day in the side panel, placed exactly as on the clock */}
+      {area.width > 0 && wide ? (
+        <Sidebar
+          layout={panel}
+          scrollList
+          pageColor={theme.page}
+          date={
+            <View
+              accessible
+              accessibilityRole="header"
+              accessibilityLabel={`${system.longDate(selected)}${
+                selectedSecondary ? ` (${selectedSecondary})` : ''
+              }${isSameDay(selected, today) ? ', today' : ''}`}
+            >
+              <DayHeading
+                system={system}
+                date={selected}
+                isToday={isSameDay(selected, today)}
+                theme={theme}
+                numeralHeight={panel.dateNumeral}
+                align="end"
+              />
+            </View>
+          }
+          list={
+            <DayLists
+              items={selectedItems}
+              holidays={selectedHolidays}
+              kindLabels={kindLabels}
+              theme={theme}
+              onOpenItem={openItem}
+            />
+          }
+        />
       ) : null}
       {/* Content scrolling under the overlaid controls fades out beneath them. */}
       <BottomFade height={bottomInset} color={theme.page} />

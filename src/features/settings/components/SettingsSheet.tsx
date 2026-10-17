@@ -177,6 +177,23 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         />
       </View>
 
+      {/* The side panel on the clock and the calendar: each half on its own. */}
+      <Section label="Side panel">
+        <SheetSwitch
+          label="Day & date"
+          detail="Today, or the selected day, at the top"
+          value={settings.showDayDate}
+          onChange={(showDayDate) => update({ showDayDate })}
+          first
+        />
+        <SheetSwitch
+          label="Events & festivals"
+          detail="What's on that day, and its holidays and festivals"
+          value={settings.showDayEvents}
+          onChange={(showDayEvents) => update({ showDayEvents })}
+        />
+      </Section>
+
       <Section label="Calendar · week starts on">
         <OptionGroup
           label="Week starts on"
@@ -187,23 +204,6 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           dense
         />
       </Section>
-
-      {/* The day panel beside (or below) the month: each half on its own. */}
-      <View style={styles.switchGap}>
-        <SheetSwitch
-          label="Day & date"
-          detail="The selected day above its events"
-          value={settings.showDayDate}
-          onChange={(showDayDate) => update({ showDayDate })}
-          first
-        />
-        <SheetSwitch
-          label="Events & festivals"
-          detail="The day's plans, holidays and festivals"
-          value={settings.showDayEvents}
-          onChange={(showDayEvents) => update({ showDayEvents })}
-        />
-      </View>
 
       <Pressable
         accessibilityRole="button"

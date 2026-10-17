@@ -12,6 +12,8 @@ import {
 import { useAccount } from '@/features/account/AccountProvider';
 import { AccountSection } from '@/features/account/components/AccountSection';
 import { GoogleSection } from '@/features/google/components/GoogleSection';
+import { SoundSection } from '@/features/sound/components/SoundSection';
+import { useSound } from '@/features/sound/SoundProvider';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 import { APPEARANCES, FACES, MOVEMENTS, SIZES, WEEK_STARTS } from '../settings';
@@ -37,6 +39,7 @@ const FACE_ICONS = { analog: Clock3, digital: RectangleEllipsis } as const;
 export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { settings, update, reset, uiTheme: ui } = useSettings();
   const { openSheet } = useAccount();
+  const { reset: resetSound } = useSound();
   const reducedMotion = useReducedMotion();
 
   const showDials = settings.appearance !== 'night';
@@ -207,9 +210,14 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
         />
       </Section>
 
+      <SoundSection />
+
       <Pressable
         accessibilityRole="button"
-        onPress={reset}
+        onPress={() => {
+          reset();
+          resetSound();
+        }}
         style={({ hovered, pressed }) => [styles.reset, { opacity: hovered || pressed ? 1 : 0.7 }]}
       >
         <RotateCcw size={14} color={ui.muted} strokeWidth={1.5} />

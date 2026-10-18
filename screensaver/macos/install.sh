@@ -18,9 +18,12 @@ fi
 
 dest="$HOME/Library/Screen Savers"
 mkdir -p "$dest"
-# The old copy may still be loaded by macOS's screen-saver process.
-killall legacyScreenSaver 2>/dev/null || true
-killall "legacyScreenSaver (System Settings)" 2>/dev/null || true
+# The old copy may still be loaded: System Settings and macOS's screen-saver
+# processes keep a screen saver's code until they quit.
+osascript -e 'quit app "System Settings"' 2>/dev/null || true
+pkill -f legacyScreenSaver 2>/dev/null || true
+pkill -f ScreenSaverEngine 2>/dev/null || true
+sleep 1
 rm -rf "$dest/FORM TIME.saver"
 ditto "$saver" "$dest/FORM TIME.saver"
 # Downloaded copies are marked "from the internet"; this one is yours now.

@@ -42,9 +42,11 @@ final class WebFiles: NSObject, WKURLSchemeHandler {
     ]
 
     private let root: URL
+    private let log: (String) -> Void
 
-    init(root: URL) {
+    init(root: URL, log: @escaping (String) -> Void = { _ in }) {
         self.root = root.standardizedFileURL
+        self.log = log
     }
 
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
@@ -53,6 +55,7 @@ final class WebFiles: NSObject, WKURLSchemeHandler {
             return
         }
         guard let file = fileFor(url.path), let data = try? Data(contentsOf: file) else {
+            log("not found: \(url.path)")
             let response = HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: [:])!
             task.didReceive(response)
             task.didFinish()

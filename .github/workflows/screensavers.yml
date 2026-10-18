@@ -1,0 +1,114 @@
+# Builds and tests the FORM / TIME screensavers on real Windows and macOS
+# machines, and keeps the results (zips and screenshots) as downloadable
+# artifacts on the run's page (Actions → Screensavers → a run → Artifacts).
+name: Screensavers
+
+on:
+  push:
+    branches: [feat/desktop]
+    paths:
+      - 'screensaver/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/screensavers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screensavers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: node screensaver/scripts/build-web.mjs screensaver/build/web
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: web-export
+          path: screensaver/build/web
+          retention-days: 3
+
+  windows:
+    name: Windows (.scr)
+    needs: web
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: web-export
+          path: screensaver/build/web
+      - name: Build
+        shell: pwsh
+        run: ./screensaver/windows/build.ps1 -SkipWeb *>&1 | Tee-Object -FilePath build.log
+      - name: Report build errors
+        if: failure()
+        shell: pwsh
+        run: (Select-String -Path build.log -Pattern 'error' | Select-Object -First 5 | ForEach-Object { $_.Line }) + (Get-Content build.log -Tail 5) | ForEach-Object { "::error::$_" }
+      - name: Install, run and uninstall
+        shell: pwsh
+        run: ./screensaver/tests/windows-smoke.ps1 -Folder "screensaver/build/FORM TIME Screensaver" -Out screensaver/build/screenshots
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: FORM-TIME-Screensaver-Windows
+          path: screensaver/build/FORM-TIME-Screensaver-Windows.zip
+          compression-level: 0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: windows-screenshots
+          path: screensaver/build/screenshots
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS (.saver)
+    needs: web
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: web-export
+          path: screensaver/build/web
+      - name: Build
+        run: |
+          set -o pipefail
+          bash screensaver/macos/build.sh --skip-web 2>&1 | tee build.log
+      - name: Report build errors
+        if: failure()
+        run: (grep -iE 'error' build.log | head -5; tail -n 5 build.log) | sed 's/^/::error::/'
+      - name: Check the bundle
+        run: |
+          saver="screensaver/build/FORM TIME.saver"
+          file "$saver/Contents/MacOS/FormTimeSaver"
+          lipo -archs "$saver/Contents/MacOS/FormTimeSaver"
+          codesign -dv "$saver" 2>&1 | head -5
+          plutil -lint "$saver/Contents/Info.plist"
+      - name: Load it and take snapshots
+        run: |
+          xcrun clang -fobjc-arc -framework AppKit -framework ScreenSaver -framework WebKit \
+            screensaver/tests/mac-snapshot.m -o screensaver/build/mac-snapshot
+          screensaver/build/mac-snapshot "screensaver/build/FORM TIME.saver" screensaver/build/screenshots
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: FORM-TIME-Screensaver-mac
+          path: screensaver/build/FORM-TIME-Screensaver-mac.zip
+          compression-level: 0
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: mac-screenshots
+          path: screensaver/build/screenshots
+          if-no-files-found: ignore

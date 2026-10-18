@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    FORM / TIME for Windows' Screen Saver settings: a small WinForms host
+    that shows the web app's /screensaver page in WebView2 (built into
+    Windows 10 and 11) on every monitor.
+
+    .NET Framework 4.8 ships with Windows 10 (1903+) and 11, so nothing
+    else needs installing. x64 runs natively on Intel/AMD and emulated on
+    Windows on Arm.
+
+    Build with build.ps1, which also exports the web app and assembles the
+    folder that install.ps1 copies into place.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>7.3</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>FormTimeScreensaver</AssemblyName>
+    <RootNamespace>FormTime.Screensaver</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <Product>FORM / TIME Screensaver</Product>
+    <AssemblyTitle>FORM / TIME</AssemblyTitle>
+    <Description>FORM / TIME</Description>
+    <Copyright>© FORM / TIME</Copyright>
+    <Version>1.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Highest 1.0.x stable release: the Evergreen runtime is always newer. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />
+    <!-- Lets the project build off Windows too (CI, a Mac); a no-op on Windows. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

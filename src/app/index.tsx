@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Clock3, RectangleEllipsis } from 'lucide-react-native';
 
+import { revealControls } from '@/components/quiet-control';
 import { QuietIconButton } from '@/components/QuietIconButton';
 import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
@@ -54,6 +55,10 @@ export default function Home() {
   }, []);
   const onSwipeStart = useCallback(() => setSwiping(true), []);
 
+  // Touch screens: the page's controls show when the page opens, then hide
+  // until the screen is touched (any touch; it still does what it did).
+  useEffect(() => revealControls(), []);
+
   // Ticking and the minute mark belong to the clock: only while it's on screen.
   const { setClockOnScreen } = useSound();
   useEffect(() => {
@@ -64,7 +69,13 @@ export default function Home() {
   return (
     <PagerGestureProvider>
       <ComposerProvider>
-        <View style={[styles.screen, { backgroundColor: uiTheme.page }]}>
+        <View
+          style={[styles.screen, { backgroundColor: uiTheme.page }]}
+          onStartShouldSetResponderCapture={() => {
+            revealControls();
+            return false; // never takes the touch: the dial, a swipe, a tap work as before
+          }}
+        >
           <SwipePager
             index={page}
             onIndexChange={onIndexChange}
@@ -93,6 +104,7 @@ export default function Home() {
                 icon={digital ? Clock3 : RectangleEllipsis}
                 label={digital ? 'Show analog clock' : 'Show digital clock'}
                 onPress={() => update({ face: digital ? 'analog' : 'digital' })}
+                hideOnTouch
                 style={{
                   position: 'absolute',
                   right: insets.right + EDGE,
@@ -102,6 +114,7 @@ export default function Home() {
             ) : null}
             <SettingsButton
               onPress={() => setSettingsOpen((open) => !open)}
+              hideOnTouch
               style={{
                 position: 'absolute',
                 left: insets.left + EDGE,
@@ -120,6 +133,7 @@ export default function Home() {
                 activeColor={uiTheme.accent}
                 idleColor={uiTheme.hairline}
                 inkColor={uiTheme.ink}
+                hideOnTouch
               />
             </View>
           </View>

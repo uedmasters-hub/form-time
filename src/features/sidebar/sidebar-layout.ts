@@ -12,9 +12,8 @@
  * is too short for everything, the panel gives way — fewer event rows, a
  * smaller date, then no list, and only then no date — instead of the dial
  * shrinking; the bands for the corner controls tighten on short screens;
- * and the panel's two halves never meet. Which halves fit depends only on
- * the screen, never on the Settings switches, so toggling them still moves
- * nothing.
+ * and the panel's two halves never meet. A half switched off in Settings
+ * keeps no room on narrow screens: the dial takes it.
  */
 
 /** Bands kept clear for the corner controls (region code, settings, switch). */
@@ -174,14 +173,18 @@ function fittedLayout(
   const full = wide ? NUMERAL_WIDE : NUMERAL_NARROW;
 
   // In order of preference: everything, then fewer rows, a smaller date,
-  // no list, and last of all no date.
+  // no list, and last of all no date. Halves switched off aren't planned for.
   const plans: Plan[] = [];
-  for (let rows = Math.max(1, eventRows); rows >= 1; rows--) {
-    plans.push({ rows, numeral: full, date: true, list: true });
+  if (showEvents) {
+    for (let rows = Math.max(1, eventRows); rows >= 1; rows--) {
+      plans.push({ rows, numeral: full, date: showDate, list: true });
+    }
+    if (showDate) plans.push({ rows: 1, numeral: NUMERAL_SMALL, date: true, list: true });
   }
-  plans.push({ rows: 1, numeral: NUMERAL_SMALL, date: true, list: true });
-  plans.push({ rows: 1, numeral: full, date: true, list: false });
-  plans.push({ rows: 1, numeral: NUMERAL_SMALL, date: true, list: false });
+  if (showDate) {
+    plans.push({ rows: 1, numeral: full, date: true, list: false });
+    plans.push({ rows: 1, numeral: NUMERAL_SMALL, date: true, list: false });
+  }
   plans.push({ rows: 1, numeral: full, date: false, list: false });
 
   const mainFor = (plan: Plan): Insets => {

@@ -29,7 +29,7 @@ const COMPACT_SCALE = 0.62;
  * way so the dial can have IDEAL_DIAL.
  */
 const IDEAL_DIAL = 0.75;
-const LEAST_DIAL = 0.6;
+const LEAST_DIAL = 0.72;
 
 /**
  * Size the clock from the space this page leaves it, measured after

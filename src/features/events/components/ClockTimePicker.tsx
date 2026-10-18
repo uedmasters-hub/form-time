@@ -113,6 +113,14 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
     compose({ mode: 'new', date, time });
   });
 
+  // Touch: the time under the finger shows as it lands, like the mouse's
+  // hover, so a tap is answered before the editor opens.
+  const preview = (x: number, y: number) => {
+    if (!onDial(x, y)) return;
+    const p = pick(x, y, 5);
+    setHover({ angle: p.angle, x, y, date: p.date, time: p.time });
+  };
+
   // Native: where the finger landed. (Web reads DOM pointer events below,
   // because react-native-web's press events carry no pointer type or Alt.)
   const onPressIn = (e: GestureResponderEvent) => {
@@ -124,13 +132,16 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
       touch: true,
       at: Date.now(),
     };
+    preview(e.nativeEvent.locationX, e.nativeEvent.locationY);
   };
 
   // Web: pointer type and Alt from the pointer event; Alt-clicks handled
   // here, since react-native-web drops them before onPress.
   const openAtRef = useRef(openAt);
+  const previewRef = useRef(preview);
   useEffect(() => {
     openAtRef.current = openAt;
+    previewRef.current = preview;
   });
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -147,6 +158,20 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
         touch: e.pointerType === 'touch',
         at: Date.now(),
       };
+      if (e.pointerType === 'touch') {
+        const { x, y } = at(e);
+        previewRef.current(x, y);
+      }
+    };
+    // A finger that moves off is swiping or scrolling: the preview goes.
+    const onTouchMove = (e: PointerEvent) => {
+      const down = pressInfo.current;
+      if (e.pointerType !== 'touch' || !down) return;
+      const { x, y } = at(e);
+      if (Math.hypot(x - down.x, y - down.y) > 12) setHover(null);
+    };
+    const onTouchEnd = (e: PointerEvent) => {
+      if (e.pointerType === 'touch' && e.type === 'pointercancel') setHover(null);
     };
     const onAltClick = (e: MouseEvent) => {
       if (!e.altKey) return;
@@ -155,9 +180,13 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
       openAtRef.current({ ...at(e), precise: true, touch: false, at: Date.now() });
     };
     node.addEventListener('pointerdown', onDown);
+    node.addEventListener('pointermove', onTouchMove);
+    node.addEventListener('pointercancel', onTouchEnd);
     node.addEventListener('click', onAltClick);
     return () => {
       node.removeEventListener('pointerdown', onDown);
+      node.removeEventListener('pointermove', onTouchMove);
+      node.removeEventListener('pointercancel', onTouchEnd);
       node.removeEventListener('click', onAltClick);
     };
   }, []);
@@ -206,6 +235,8 @@ export function ClockTimePicker({ size, dialTheme, ui, timeZone, children }: Clo
       ref={ref}
       onPressIn={onPressIn}
       onPress={open}
+      // Released off the dial or turned into a swipe: no editor, no preview.
+      onPressOut={() => setTimeout(() => setHover((h) => (pressInfo.current ? null : h)), 0)}
       onPointerMove={onPointerMove}
       onPointerLeave={() => setHover(null)}
       accessibilityRole="button"

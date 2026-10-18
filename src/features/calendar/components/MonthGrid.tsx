@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
@@ -43,6 +43,8 @@ type MonthGridProps = {
   /** How many of the user's own items fall on each ISO date. */
   itemCounts: Map<string, number>;
   onSelect: (date: CalendarDate) => void;
+  /** A day tapped or clicked (not reached with the arrow keys): phones open it. */
+  onPressDay?: (date: CalendarDate) => void;
 };
 
 /**
@@ -67,6 +69,7 @@ export function MonthGrid({
   kindLabels,
   itemCounts,
   onSelect,
+  onPressDay,
 }: MonthGridProps) {
   const headers = useMemo(() => weekdayNames(weekStart, 'narrow'), [weekStart]);
   const weekendColumns = useMemo(
@@ -78,7 +81,14 @@ export function MonthGrid({
   const containerRef = useRef<View>(null);
   const focusAfterMove = useRef(false);
 
-  const select = useSwipeAwarePress(onSelect);
+  const press = useCallback(
+    (date: CalendarDate) => {
+      onSelect(date);
+      onPressDay?.(date);
+    },
+    [onSelect, onPressDay],
+  );
+  const select = useSwipeAwarePress(press);
 
   // Keyboard navigation (web only; native has no grid keyboard model here).
   useEffect(() => {

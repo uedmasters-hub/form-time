@@ -18,7 +18,7 @@ import { SyncError, type SyncProblem } from '@/features/sync/supabase-rest';
 
 import { newId } from './item-time';
 import { carryReminders } from './reminder-state';
-import { syncRound } from './sync';
+import { mergeRemote, syncRound } from './sync';
 import type { CalendarItem } from './types';
 
 /**
@@ -56,6 +56,19 @@ type EventsContextValue = {
    * the meantime come back, untouched, for the next round.
    */
   applyExternal: (changes: { item: CalendarItem; base: string | null }[]) => string[];
+  /**
+   * Pull to refresh: a sync round now (signed in), or this device's stored
+   * copy read again (signed out — another tab may have changed it). Merges
+   * by id, so nothing doubles, and unsent changes here are kept.
+   */
+  refresh: () => Promise<EventsRefresh>;
+};
+
+export type EventsRefresh = {
+  /** Checked with the account (false: this device only). */
+  remote: boolean;
+  /** What went wrong, in a sentence; null when it worked. */
+  problem: string | null;
 };
 
 const ITEMS_KEY = 'formtime.items.v1';
@@ -103,6 +116,8 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const again = useRef(false);
   const clientRef = useRef(rest);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** How the last sync round ended: null, or what went wrong. */
+  const lastProblem = useRef<string | null>(null);
 
   const commit = useCallback((items: CalendarItem[]) => {
     allRef.current = items;
@@ -143,9 +158,11 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       }
       dirtyRef.current = new Set([...result.dirty, ...edited]);
       commit(merged);
+      lastProblem.current = null;
       setStatus({ state: 'synced', at: Date.now() });
     } catch (error) {
       const problem = error instanceof SyncError ? error.problem : 'server';
+      lastProblem.current = PROBLEM_TEXT[problem];
       setStatus({
         state: 'problem',
         problem,
@@ -175,7 +192,10 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     const stored = readJSON<Stored>(ITEMS_KEY);
     if (stored && Array.isArray(stored.items)) {
       // Items saved before a field existed get its empty value.
-      const items = stored.items.map((item) => ({ ...item, place: item.place ?? '' }));
+      const items = stored.items.map((item) => ({
+        ...item,
+        place: item.place ?? '',
+      }));
       allRef.current = items;
       ownerRef.current = stored.owner ?? null;
       dirtyRef.current = new Set(stored.dirty ?? []);
@@ -323,6 +343,31 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     return dirtyRef.current.size;
   }, [runSync]);
 
+  const refresh = useCallback(async (): Promise<EventsRefresh> => {
+    if (clientRef.current) {
+      lastProblem.current = null;
+      await flush();
+      return { remote: true, problem: lastProblem.current };
+    }
+    // Signed in once, but the session ended: nothing to ask until sign-in.
+    if (ownerRef.current !== null) return { remote: false, problem: PROBLEM_TEXT.unauthorized };
+    const stored = readJSON<Stored>(ITEMS_KEY);
+    if (stored && (stored.owner ?? null) === null && Array.isArray(stored.items)) {
+      const fromStore = stored.items.map((item) => ({
+        ...item,
+        place: item.place ?? '',
+      }));
+      const merged = mergeRemote(allRef.current, fromStore, dirtyRef.current);
+      const key = (items: CalendarItem[]) =>
+        items
+          .map((item) => `${item.id}@${item.updatedAt}`)
+          .sort()
+          .join(',');
+      if (key(merged) !== key(allRef.current)) commit(merged);
+    }
+    return { remote: false, problem: null };
+  }, [flush, commit]);
+
   const value = useMemo<EventsContextValue>(
     () => ({
       items: all.filter((item) => !item.deletedAt),
@@ -335,8 +380,9 @@ export function EventsProvider({ children }: { children: ReactNode }) {
       unsent,
       getAll,
       applyExternal,
+      refresh,
     }),
-    [all, loaded, status, save, remove, syncNow, flush, unsent, getAll, applyExternal],
+    [all, loaded, status, save, remove, syncNow, flush, unsent, getAll, applyExternal, refresh],
   );
 
   return <EventsContext.Provider value={value}>{children}</EventsContext.Provider>;

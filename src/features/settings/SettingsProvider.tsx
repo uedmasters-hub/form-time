@@ -26,7 +26,7 @@ import {
 } from './settings';
 import { loadSettings, saveSettings } from './settings-storage';
 import { NEVER, type SettingsMeta } from './settings-sync';
-import { useSettingsSync } from './use-settings-sync';
+import { useSettingsSync, type SettingsRound } from './use-settings-sync';
 
 /** When settings last changed here, and the account they were synced with. */
 const META_KEY = 'formtime.settings.meta.v1';
@@ -44,6 +44,8 @@ type SettingsContextValue = {
   /** Selected area of the selected region: its IANA zone and labels. */
   area: Area;
   timeZone: string;
+  /** Brings settings in step with the account now (pull to refresh). */
+  syncSettings: () => Promise<SettingsRound>;
 };
 
 const WEEKDAY_OF: Record<Exclude<WeekStartSetting, 'locale'>, Weekday> = {
@@ -56,7 +58,10 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [meta, setMeta] = useState<SettingsMeta>({ updatedAt: NEVER, owner: null });
+  const [meta, setMeta] = useState<SettingsMeta>({
+    updatedAt: NEVER,
+    owner: null,
+  });
   // Saved settings load after mount: the static web render must match the
   // first client render, so both start from the defaults.
   const loaded = useRef(false);
@@ -111,7 +116,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     (owner: string | null) => setMeta((m) => (m.owner === owner ? m : { ...m, owner })),
     [],
   );
-  useSettingsSync({ settings, meta, apply, setOwner });
+  const syncSettings = useSettingsSync({ settings, meta, apply, setOwner });
 
   const scheme = useColorScheme();
   const mode: 'day' | 'night' =
@@ -131,8 +136,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       timeZone: areaOf(settings.region, settings.area).timeZone,
       weekStart:
         settings.weekStart === 'locale' ? defaultWeekStart() : WEEKDAY_OF[settings.weekStart],
+      syncSettings,
     };
-  }, [settings, update, resetAndTouch, mode]);
+  }, [settings, update, resetAndTouch, mode, syncSettings]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

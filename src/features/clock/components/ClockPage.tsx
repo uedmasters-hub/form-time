@@ -1,5 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useComposer } from '@/features/events/ComposerProvider';
 import { ClockTimePicker } from '@/features/events/components/ClockTimePicker';
@@ -8,6 +14,7 @@ import { nextSlot, uses12Hour } from '@/features/events/item-time';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
 import { sidebarLayout } from '@/features/sidebar/sidebar-layout';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 import { AnalogClock } from './AnalogClock';
 import { DigitalClock } from './DigitalClock';
@@ -55,6 +62,20 @@ export function ClockPage({ paused = false }: ClockPageProps) {
   // panel (today, what's next, festivals) floats beside it. The digital face
   // shows one upcoming item at a time, the analog up to three.
   const digital = settings.face === 'digital';
+
+  // Analog ↔ digital: the new face fades in rather than cutting.
+  const reducedMotion = useReducedMotion();
+  const fade = useSharedValue(1);
+  const shownFace = useRef(settings.face);
+  useEffect(() => {
+    if (shownFace.current === settings.face) return;
+    shownFace.current = settings.face;
+    if (reducedMotion) return;
+    fade.set(0);
+    fade.set(withTiming(1, { duration: 340, easing: Easing.bezier(0.22, 1, 0.36, 1) }));
+  }, [settings.face, reducedMotion, fade]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.get() }));
+
   const panel = { showDate: settings.showDayDate, showEvents: settings.showDayEvents };
   // The dial comes first: the panel gives way (fewer rows, a smaller date,
   // then no list) rather than let it shrink below its share of the width.
@@ -90,7 +111,10 @@ export function ClockPage({ paused = false }: ClockPageProps) {
 
   if (settings.face === 'digital') {
     return (
-      <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>
+      <Animated.View
+        style={[styles.page, { backgroundColor: dialTheme.page }, fadeStyle]}
+        onLayout={onLayout}
+      >
         {area.width > 0 ? (
           <DigitalClock
             width={area.width}
@@ -117,12 +141,15 @@ export function ClockPage({ paused = false }: ClockPageProps) {
             paused={paused}
           />
         ) : null}
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View style={[styles.page, { backgroundColor: dialTheme.page }]} onLayout={onLayout}>
+    <Animated.View
+      style={[styles.page, { backgroundColor: dialTheme.page }, fadeStyle]}
+      onLayout={onLayout}
+    >
       {size > 0 ? (
         <View style={[styles.main, main]}>
           {/* Point at the dial to add something at that time. */}
@@ -140,7 +167,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
         </View>
       ) : null}
       {area.width > 0 ? <TodaySidebar layout={layout} contentWidth={size} paused={paused} /> : null}
-    </View>
+    </Animated.View>
   );
 }
 

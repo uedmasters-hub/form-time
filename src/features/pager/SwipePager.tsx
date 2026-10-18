@@ -24,6 +24,8 @@ type SwipePagerProps = {
   progress: SharedValue<number>;
   /** Skip the settle animation; pages still track the finger directly. */
   reducedMotion: boolean;
+  /** Holds the pages still (swipes, trackpad and arrow keys) — e.g. while a day is open. */
+  locked?: boolean;
   children: ReactNode;
 };
 
@@ -66,6 +68,7 @@ export function SwipePager({
   onSwipeStart,
   progress,
   reducedMotion,
+  locked = false,
   children,
 }: SwipePagerProps) {
   const pages = Children.toArray(children);
@@ -86,6 +89,10 @@ export function SwipePager({
   const pageRefs = useRef<(View | null)[]>([]);
   const indexRef = useRef(index);
   const lastWidth = useRef(0);
+  const lockedRef = useRef(locked);
+  useEffect(() => {
+    lockedRef.current = locked;
+  }, [locked]);
 
   useEffect(() => {
     indexRef.current = index;
@@ -148,7 +155,7 @@ export function SwipePager({
   );
 
   const pan = Gesture.Pan()
-    .enabled(count > 1 && width > 0)
+    .enabled(count > 1 && width > 0 && !locked)
     .activeOffsetX([-ACTIVATE_X, ACTIVATE_X])
     .failOffsetY([-FAIL_Y, FAIL_Y])
     .activeCursor('grabbing')
@@ -212,6 +219,7 @@ export function SwipePager({
 
     const onWheel = (event: WheelEvent) => {
       // Vertical scrolling and pinch-zoom (ctrl + wheel) pass through.
+      if (lockedRef.current) return;
       if (event.ctrlKey || Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
       event.preventDefault(); // also stops the browser's swipe-to-go-back
       clearTimeout(idle);
@@ -240,6 +248,7 @@ export function SwipePager({
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (
+        lockedRef.current ||
         event.defaultPrevented ||
         event.altKey ||
         event.ctrlKey ||

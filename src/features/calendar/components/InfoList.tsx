@@ -19,12 +19,15 @@ export function InfoHeading({
   align = 'end',
   scale = 1,
   aside,
+  rule = true,
 }: {
   label: string;
   theme: CalendarTheme;
   align?: Align;
   scale?: number;
   aside?: ReactNode;
+  /** The hairline above it; off where open space sets the list apart (a day's page). */
+  rule?: boolean;
 }) {
   const type = Math.min(scale, 1.35);
   const text = (
@@ -41,6 +44,7 @@ export function InfoHeading({
       style={[
         styles.heading,
         { borderColor: theme.hairline, paddingTop: 12 * scale, marginBottom: 4 * scale },
+        !rule && styles.noRule,
       ]}
     >
       {align === 'end' ? side : text}
@@ -212,6 +216,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     borderTopWidth: StyleSheet.hairlineWidth,
   },
+  noRule: { borderTopWidth: 0 },
   label: { fontWeight: '600', letterSpacing: 1.6 },
   row: {
     alignSelf: 'stretch',

@@ -36,8 +36,8 @@ export function useSettingsSync({
   /** The settings time the account is known to hold. */
   const synced = useRef<string | null>(null);
 
-  const round = useCallback(async () => {
-    if (!rest || !userId) return;
+  const round = useCallback(async (): Promise<SettingsRound> => {
+    if (!rest || !userId) return 'skipped';
     try {
       const remote = await pullSettings(rest);
       const { settings: local, meta: localMeta } = latest.current;
@@ -45,13 +45,15 @@ export function useSettingsSync({
       if (result.action === 'apply') {
         synced.current = result.updatedAt;
         apply(result.settings, result.updatedAt, userId);
-        return;
+        return 'applied';
       }
       if (result.action === 'push') await pushSettings(rest, local, localMeta.updatedAt);
       synced.current = localMeta.updatedAt;
       if (localMeta.owner !== userId) setOwner(userId);
+      return 'same';
     } catch {
       // Offline or not set up yet: the next round tries again.
+      return 'failed';
     }
   }, [rest, userId, apply, setOwner]);
 
@@ -94,4 +96,9 @@ export function useSettingsSync({
       app.remove();
     };
   }, [rest, userId, round]);
+
+  return round;
 }
+
+/** How a settings round went: took the account's, already in step, couldn't reach it, or signed out. */
+export type SettingsRound = 'applied' | 'same' | 'failed' | 'skipped';

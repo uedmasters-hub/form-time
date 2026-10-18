@@ -54,6 +54,11 @@ type GoogleContextValue = {
   connect: () => void;
   disconnect: () => void;
   syncNow: () => void;
+  /**
+   * Pull to refresh: a round now, once any round in flight has finished.
+   * `connected` false when there's no Google calendar to ask.
+   */
+  refresh: () => Promise<{ connected: boolean; problem: string | null }>;
 };
 
 const GoogleContext = createContext<GoogleContextValue | null>(null);
@@ -91,6 +96,8 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
 
   const running = useRef(false);
+  /** How the last round ended: null, or what went wrong. */
+  const lastProblem = useRef<string | null>(null);
   const again = useRef(false);
   const synced = useRef<string | null>(null);
   const zone = useRef(timeZone);
@@ -107,6 +114,7 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
     const stored = readGoogle();
     if (!stored.connected) return;
     if (!stored.token || stored.token.expiresAt - TOKEN_MARGIN_MS < Date.now()) {
+      lastProblem.current = EXPIRED;
       setStatus({ state: 'reconnect', message: EXPIRED });
       return;
     }
@@ -141,6 +149,14 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
       synced.current = fingerprint(getAll());
 
       const error = result.error;
+      lastProblem.current = error
+        ? error instanceof GoogleApiError && error.problem === 'offline'
+          ? 'Offline — will sync with Google when you’re back'
+          : error instanceof GoogleApiError &&
+              (error.problem === 'unauthorized' || error.problem === 'forbidden')
+            ? EXPIRED
+            : 'Couldn’t sync with Google Calendar'
+        : null;
       if (!error) {
         setStatus({ state: 'synced', at: Date.now(), counts: result.counts });
       } else if (error instanceof GoogleApiError) {
@@ -158,10 +174,16 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
             message: 'Offline — will sync with Google when you’re back',
           });
         } else {
-          setStatus({ state: 'problem', message: `Google Calendar: ${error.message}` });
+          setStatus({
+            state: 'problem',
+            message: `Google Calendar: ${error.message}`,
+          });
         }
       } else {
-        setStatus({ state: 'problem', message: 'Couldn’t sync with Google Calendar' });
+        setStatus({
+          state: 'problem',
+          message: 'Couldn’t sync with Google Calendar',
+        });
       }
     } finally {
       running.current = false;
@@ -241,6 +263,20 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
 
   const syncNow = useCallback(() => void round(), [round]);
 
+  const refresh = useCallback(async () => {
+    if (!available || !readGoogle().connected) return { connected: false, problem: null };
+    const settle = async () => {
+      for (let i = 0; running.current && i < 150; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+    await settle();
+    lastProblem.current = null;
+    await round();
+    await settle();
+    return { connected: true, problem: lastProblem.current };
+  }, [round]);
+
   const value = useMemo<GoogleContextValue>(
     () => ({
       available,
@@ -252,8 +288,9 @@ export function GoogleSyncProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       syncNow,
+      refresh,
     }),
-    [connected, account, status, busy, prepare, connect, disconnect, syncNow],
+    [connected, account, status, busy, prepare, connect, disconnect, syncNow, refresh],
   );
 
   return <GoogleContext.Provider value={value}>{children}</GoogleContext.Provider>;

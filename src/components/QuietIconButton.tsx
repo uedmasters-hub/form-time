@@ -13,7 +13,15 @@ import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCanHover } from '@/hooks/use-can-hover';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-import { QUIET, quietOpacity, quietTransition, usePointerAwake, withAlpha } from './quiet-control';
+import {
+  QUIET,
+  quietTouchable,
+  quietOpacity,
+  quietTransition,
+  revealControls,
+  useQuietAwake,
+  withAlpha,
+} from './quiet-control';
 
 type QuietIconButtonProps = {
   icon: LucideIcon;
@@ -23,6 +31,8 @@ type QuietIconButtonProps = {
   disabled?: boolean;
   hint?: string;
   iconSize?: number;
+  /** One of the page's own controls: hidden on touch screens until the screen is touched. */
+  hideOnTouch?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -44,19 +54,35 @@ export function QuietIconButton({
   disabled = false,
   hint,
   iconSize = 20,
+  hideOnTouch = false,
   style,
 }: QuietIconButtonProps) {
   const { uiTheme } = useSettings();
   const canHover = useCanHover();
-  const awake = usePointerAwake();
+  const { awake, ready } = useQuietAwake(canHover);
   const reducedMotion = useReducedMotion();
+  // Any focus (a keyboard, a screen reader) shows a hidden control and keeps it.
+  const [focused, setFocused] = useState(false);
   // Keyboard focus only (:focus-visible), so a mouse click doesn't leave a ring.
   const [focusVisible, setFocusVisible] = useState(false);
 
   const onFocus = (event: NativeSyntheticEvent<unknown>) => {
+    setFocused(true);
+    if (hideOnTouch) revealControls();
     const target = event.target as unknown as { matches?: (selector: string) => boolean };
     setFocusVisible(Platform.OS !== 'web' || Boolean(target?.matches?.(':focus-visible')));
   };
+
+  const touchable = quietTouchable(
+    {
+      active: focusVisible || (!canHover && hideOnTouch && focused),
+      disabled,
+      canHover,
+      awake,
+      hideable: hideOnTouch,
+    },
+    ready,
+  );
 
   return (
     <Pressable
@@ -68,10 +94,20 @@ export function QuietIconButton({
       disabled={disabled}
       onPress={onPress}
       onFocus={onFocus}
-      onBlur={() => setFocusVisible(false)}
+      onBlur={() => {
+        setFocused(false);
+        setFocusVisible(false);
+      }}
       hitSlop={4}
+      pointerEvents={touchable ? 'auto' : 'none'}
       style={({ hovered, pressed }) => {
-        const state = { active: hovered || pressed || focusVisible, disabled, canHover, awake };
+        const state = {
+          active: hovered || pressed || focusVisible || (!canHover && hideOnTouch && focused),
+          disabled,
+          canHover,
+          awake,
+          hideable: hideOnTouch,
+        };
         return [
           styles.button,
           { opacity: quietOpacity(state) },

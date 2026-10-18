@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { SIDEBAR_BOTTOM, SIDEBAR_TOP, panelMaxWidth, type SidebarLayout } from '../sidebar-layout';
+import { panelMaxWidth, type SidebarLayout } from '../sidebar-layout';
 
 /**
  * The side panel, floated over the page: `date` at the top right and `list`
@@ -27,10 +27,10 @@ export function Sidebar({
   return (
     <>
       {layout.showDate && date ? (
-        <View style={[styles.corner, box, { top: SIDEBAR_TOP }]}>{date}</View>
+        <View style={[styles.corner, box, { top: layout.top }]}>{date}</View>
       ) : null}
       {layout.showEvents && list ? (
-        <View style={[styles.corner, box, { bottom: SIDEBAR_BOTTOM }]}>{list}</View>
+        <View style={[styles.corner, box, { bottom: layout.bottom }]}>{list}</View>
       ) : null}
     </>
   );

@@ -17,9 +17,11 @@ import Animated, {
 
 import {
   QUIET,
+  quietTouchable,
   quietOpacity,
   quietTransition,
-  usePointerAwake,
+  revealControls,
+  useQuietAwake,
   withAlpha,
 } from '@/components/quiet-control';
 import { useCanHover } from '@/hooks/use-can-hover';
@@ -34,6 +36,8 @@ type PageIndicatorProps = {
   idleColor: string;
   /** Ink, for the focus ring and pressed tint (as on the icon buttons). */
   inkColor: string;
+  /** Hidden on touch screens until the screen is touched. */
+  hideOnTouch?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -56,10 +60,13 @@ export function PageIndicator({
   activeColor,
   idleColor,
   inkColor,
+  hideOnTouch = false,
   style,
 }: PageIndicatorProps) {
   const canHover = useCanHover();
-  const awake = usePointerAwake();
+  const { awake, ready } = useQuietAwake(canHover);
+  // Any focus (a keyboard, a screen reader) shows it while hidden on touch screens.
+  const [focusedAny, setFocusedAny] = useState(false);
   const reducedMotion = useReducedMotion();
   const [hovered, setHovered] = useState(false);
   const [pressing, setPressing] = useState<number | null>(null);
@@ -67,12 +74,20 @@ export function PageIndicator({
 
   // Keyboard focus only (:focus-visible), so a click doesn't leave a ring.
   const onFocus = (i: number) => (event: NativeSyntheticEvent<unknown>) => {
+    setFocusedAny(true);
+    if (hideOnTouch) revealControls();
     const target = event.target as unknown as { matches?: (selector: string) => boolean };
     const visible = Platform.OS !== 'web' || Boolean(target?.matches?.(':focus-visible'));
     setFocused(visible ? i : null);
   };
 
-  const state = { active: hovered || pressing !== null || focused !== null, canHover, awake };
+  const state = {
+    active:
+      hovered || pressing !== null || focused !== null || (!canHover && hideOnTouch && focusedAny),
+    canHover,
+    awake,
+    hideable: hideOnTouch,
+  };
 
   return (
     <View
@@ -80,6 +95,7 @@ export function PageIndicator({
       accessibilityLabel="Views"
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
+      pointerEvents={quietTouchable(state, ready) ? 'auto' : 'none'}
       style={[
         styles.group,
         { opacity: quietOpacity(state) },
@@ -97,7 +113,10 @@ export function PageIndicator({
           onPressIn={() => setPressing(i)}
           onPressOut={() => setPressing(null)}
           onFocus={onFocus(i)}
-          onBlur={() => setFocused(null)}
+          onBlur={() => {
+            setFocused(null);
+            setFocusedAny(false);
+          }}
           style={[
             styles.hit,
             quietTransition(state, reducedMotion),

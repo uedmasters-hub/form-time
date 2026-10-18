@@ -7,7 +7,7 @@ import { TodaySidebar } from '@/features/events/components/UpNext';
 import { nextSlot, uses12Hour } from '@/features/events/item-time';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import type { ClockSize } from '@/features/settings/settings';
-import { sidebarLayout, type SidebarLayout } from '@/features/sidebar/sidebar-layout';
+import { sidebarLayout } from '@/features/sidebar/sidebar-layout';
 
 import { AnalogClock } from './AnalogClock';
 import { DigitalClock } from './DigitalClock';
@@ -15,8 +15,14 @@ import { DigitalClock } from './DigitalClock';
 const MAX_CLOCK_SIZE = 1000;
 /** Compact shows the clock at this share of the classic size. */
 const COMPACT_SCALE = 0.62;
-/** Phones: the dial keeps at least this share of the page's width. */
-const MIN_PHONE_DIAL = 0.75;
+/**
+ * Narrow screens: the share of its area's width the dial keeps. The day's
+ * list stays while the dial gets IDEAL_DIAL (with fewer rows or a smaller
+ * date if need be), or failing that at least LEAST_DIAL; below that it gives
+ * way so the dial can have IDEAL_DIAL.
+ */
+const IDEAL_DIAL = 0.75;
+const LEAST_DIAL = 0.6;
 
 /**
  * Size the clock from the space this page leaves it, measured after
@@ -47,23 +53,28 @@ export function ClockPage({ paused = false }: ClockPageProps) {
 
   // The clock is centred in `main`, which the side panel never changes; the
   // panel (today, what's next, festivals) floats beside it. The digital face
-  // shows one upcoming item at a time, the analog up to three (two on
-  // phones, or one where the dial would otherwise get too small).
+  // shows one upcoming item at a time, the analog up to three.
   const digital = settings.face === 'digital';
   const panel = { showDate: settings.showDayDate, showEvents: settings.showDayEvents };
-  let layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: digital ? 1 : 3 });
-  if (!digital && !layout.wide) {
-    const dialIn = (l: SidebarLayout) =>
-      clockSizeFor(
-        area.width - l.main.left - l.main.right,
-        area.height - l.main.top - l.main.bottom,
-        'classic',
-      );
-    layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: 2 });
-    if (dialIn(layout) < (area.width - layout.side * 2) * MIN_PHONE_DIAL) {
-      layout = sidebarLayout(area.width, area.height, { ...panel, eventRows: 1 });
-    }
-  }
+  // The dial comes first: the panel gives way (fewer rows, a smaller date,
+  // then no list) rather than let it shrink below its share of the width.
+  // The digital face keeps its layout, with the same short-screen care.
+  const dialShare = (main: { left: number; right: number; top: number; bottom: number }) => {
+    const width = Math.min(area.width - main.left - main.right, MAX_CLOCK_SIZE);
+    const dial = clockSizeFor(
+      area.width - main.left - main.right,
+      area.height - main.top - main.bottom,
+      'classic',
+    );
+    return width > 0 ? dial / width : 0;
+  };
+  const layout = sidebarLayout(area.width, area.height, {
+    ...panel,
+    eventRows: digital ? 1 : 3,
+    fits: digital
+      ? { share: () => 1, ideal: 1, least: 1 }
+      : { share: dialShare, ideal: IDEAL_DIAL, least: LEAST_DIAL },
+  });
   const { main } = layout;
   // The digital time reports its width once laid out; until then, assume it
   // fills its area, so the panel starts out clear of it.

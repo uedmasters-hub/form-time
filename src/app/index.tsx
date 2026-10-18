@@ -10,6 +10,7 @@ import SettingsButton from '@/components/SettingsButton';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
 import { AccountSheet } from '@/features/account/components/AccountSheet';
 import { ComposerProvider } from '@/features/events/ComposerProvider';
+import { DownloadBanner } from '@/features/download/DownloadBanner';
 import { ReminderHost } from '@/features/events/components/ReminderHost';
 import { ClockPage } from '@/features/clock/components/ClockPage';
 import { PageIndicator } from '@/features/pager/PageIndicator';
@@ -76,6 +77,8 @@ export default function Home() {
           </SwipePager>
 
           <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+            {/* Website only: the desktop app for this computer, top left. */}
+            <DownloadBanner />
             <RegionButton
               onPress={() => setRegionOpen((open) => !open)}
               style={{

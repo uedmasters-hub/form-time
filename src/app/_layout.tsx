@@ -31,6 +31,7 @@ export default function RootLayout() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="index" />
                   <Stack.Screen name="explore" />
+                  <Stack.Screen name="screensaver" options={{ animation: 'none' }} />
                 </Stack>
               </GoogleSyncProvider>
             </EventsProvider>

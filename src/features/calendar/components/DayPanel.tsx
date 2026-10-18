@@ -1,6 +1,8 @@
+import { Plus } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { QuietIconButton } from '@/components/QuietIconButton';
 import type { DayHoliday, HolidayKind } from '@/features/holidays/types';
 import { ScrollRows } from '@/features/sidebar/components/ScrollRows';
 import { FESTIVAL_ROWS, SIDEBAR_ROW } from '@/features/sidebar/sidebar-layout';
@@ -81,7 +83,7 @@ export function DayPanel({
       : '',
     showEvents
       ? holidays.length
-        ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describe(h)}`).join('. ')
+        ? holidays.map((h) => `${kindLabels[h.kind]}: ${h.name}${describeHoliday(h)}`).join('. ')
         : 'No holidays or festivals'
       : '',
   ]
@@ -149,6 +151,8 @@ export function DayLists({
   scale = 1,
   visible = DAY_EVENT_ROWS,
   onOpenItem,
+  onAdd,
+  addLabel,
   aside,
 }: {
   items: DayItem[];
@@ -160,10 +164,27 @@ export function DayLists({
   /** Events shown before the list scrolls. */
   visible?: number;
   onOpenItem?: (id: string) => void;
-  /** Beside the "Events" heading (phones: Today, +). */
+  /** A quiet + to add to this day (the calendar's side panel). */
+  onAdd?: () => void;
+  /** Names the day for assistive tech: "Saturday 24 October". */
+  addLabel?: string;
+  /** Beside the "Events" heading. */
   aside?: ReactNode;
 }) {
   const hidden = items.length - visible;
+  const more =
+    hidden > 0 ? <InfoAside text={`+${hidden} more`} theme={theme} scale={scale} /> : null;
+  const addButton = (style: ViewStyle) =>
+    onAdd ? (
+      <QuietIconButton
+        icon={Plus}
+        label={addLabel ? `Add event on ${addLabel}` : 'Add event'}
+        hint="Event, meeting, note, follow-up or alarm"
+        onPress={onAdd}
+        style={style}
+      />
+    ) : null;
+  const add = addButton(styles.add);
   return (
     <View style={styles.lists}>
       <InfoHeading
@@ -173,13 +194,20 @@ export function DayLists({
         scale={scale}
         aside={
           aside ??
-          (hidden > 0 ? (
-            <InfoAside text={`+${hidden} more`} theme={theme} scale={scale} />
-          ) : undefined)
+          (add && items.length > 0 ? (
+            <View style={styles.headingAside}>
+              {align === 'end' ? add : more}
+              {align === 'end' ? more : add}
+            </View>
+          ) : (
+            (more ?? undefined)
+          ))
         }
       />
       {items.length === 0 ? (
-        <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale} />
+        <InfoEmpty text="Nothing planned." theme={theme} align={align} scale={scale}>
+          {addButton(styles.addEmpty)}
+        </InfoEmpty>
       ) : (
         <ScrollRows
           visible={visible}
@@ -269,14 +297,14 @@ export function HolidayList({
             key={`${h.name}-${i}`}
             kind={kindLabels[h.kind]}
             title={h.name}
-            detail={describe(h).replace(/^, /, '') || undefined}
+            detail={describeHoliday(h).replace(/^, /, '') || undefined}
             theme={theme}
             align={align}
             scale={scale}
             // Official holidays in the accent; observances stay quiet.
             kindColor={h.kind === 'public' ? theme.accent : theme.muted}
             markColor={h.kind === 'public' ? theme.accent : theme.muted}
-            accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describe(h)}`}
+            accessibilityLabel={`${kindLabels[h.kind]}: ${h.name}${describeHoliday(h)}`}
           />
         ))}
       </ScrollRows>
@@ -288,13 +316,13 @@ export function HolidayList({
 export const DAY_EVENT_ROWS = 3;
 
 /** A link shows as its host ("meet.google.com"); a place as written. */
-function placeLabel(place: string): string {
+export function placeLabel(place: string): string {
   const m = /^https?:\/\/([^/?#]+)/i.exec(place.trim());
   return m ? m[1].replace(/^www\./, '') : place;
 }
 
 /** ", day 6 of 9 · Kathmandu Valley only" — or "" when there's nothing to add. */
-function describe(h: DayHoliday): string {
+export function describeHoliday(h: DayHoliday): string {
   const parts = [h.dayOf ? `day ${h.dayOf[0]} of ${h.dayOf[1]}` : '', h.note ?? ''].filter(Boolean);
   if (!parts.length) return '';
   const text = parts.join(' · ');
@@ -315,6 +343,10 @@ const styles = StyleSheet.create({
   },
   // Centred on the heading's line rather than its baseline.
   asideActions: { alignSelf: 'center' },
+  headingAside: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  // A 44 pt target on a small line: it overhangs, so the line keeps its height.
+  add: { marginVertical: -12 },
+  addEmpty: { marginVertical: -6 },
   actionsAlone: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

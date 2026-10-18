@@ -1,21 +1,23 @@
-import { Plus } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Platform, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { useComposer } from '@/features/events/ComposerProvider';
 import { useEvents } from '@/features/events/EventsProvider';
 import { formatWallTime, instantToWall, placeIn } from '@/features/events/item-time';
 import { KIND_LABEL, type CalendarItem } from '@/features/events/types';
 import { holidaysByDay, kindLabels as kindLabelsFor } from '@/features/holidays/holidays';
-import { QuietIconButton } from '@/components/QuietIconButton';
 import { BottomFade } from '@/features/pager/BottomFade';
+import { useSwipeAwarePress } from '@/features/pager/pager-context';
 import { swipeFriendlyScroll } from '@/features/pager/swipe-friendly-scroll';
+import { RefreshScrollView } from '@/features/refresh/RefreshScrollView';
+import { useRefreshAll } from '@/features/refresh/use-refresh-all';
 import { regionOf } from '@/features/region/regions';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { Sidebar } from '@/features/sidebar/components/Sidebar';
 import { sidebarLayout } from '@/features/sidebar/sidebar-layout';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
-import { isSameDay, sixWeeksFrom, toISODate, type CalendarDate } from '../calendar-date';
+import { addDays, isSameDay, sixWeeksFrom, toISODate, type CalendarDate } from '../calendar-date';
 import {
   calendarSystemFor,
   sameMonth,
@@ -24,15 +26,22 @@ import {
 } from '../calendar-system';
 import { useToday } from '../use-today';
 import { NUMERAL_INSET } from './DayCell';
+import { DayDetail } from './DayDetail';
 import { DayHeading } from './DayHeading';
 import { DayLists, DayPanel, type DayItem } from './DayPanel';
 import { MonthGrid } from './MonthGrid';
-import { MonthHeader, TodayButton } from './MonthHeader';
+import { MonthHeader } from './MonthHeader';
 
 type CalendarViewProps = {
   /** Space to keep clear for the overlaid controls (settings, page indicator). */
   bottomInset: number;
   topInset: number;
+  /** The calendar is the page on screen. Leaving it closes an open day. */
+  active?: boolean;
+  /** A day to open, from elsewhere on the home screen (the clock's date). */
+  dayRequest?: { date: CalendarDate; at: number } | null;
+  /** A day's own page opened or closed (phones and tablets). */
+  onDayOpenChange?: (open: boolean) => void;
 };
 
 /** Sizes at scale 1, the reference layout with 76 pt day cells. */
@@ -63,7 +72,13 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
  * the holidays follow the chosen region. Scrolls vertically when the screen
  * is short; horizontal swipes are left to the pager (Clock ↔ Calendar).
  */
-export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
+export function CalendarView({
+  bottomInset,
+  topInset,
+  active = true,
+  dayRequest = null,
+  onDayOpenChange,
+}: CalendarViewProps) {
   const { uiTheme: theme, weekStart, settings, timeZone } = useSettings();
   const today = useToday(timeZone);
   // Nepal's calendar is Bikram Sambat: its months, not the Gregorian ones.
@@ -226,6 +241,59 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
   const wide = panel.wide && area.height >= 560 && centeredCell >= MIN_CENTERED_CELL;
   const padding = wide ? widePadding : 20;
 
+  // Phones and tablets: a tapped day opens on its own page. Wide screens
+  // show the selected day in the side panel instead.
+  const [dayOpen, setDayOpen] = useState(false);
+  const showDay = dayOpen && !wide && area.width > 0;
+  const wideRef = useRef(wide);
+  useEffect(() => {
+    wideRef.current = wide;
+  }, [wide]);
+  const reducedMotion = useReducedMotion();
+  const refresh = useRefreshAll();
+
+  useEffect(() => {
+    onDayOpenChange?.(showDay);
+  }, [showDay, onDayOpenChange]);
+  // Back on the clock: the calendar comes back on its month.
+  useEffect(() => {
+    if (!active) setDayOpen(false);
+  }, [active]);
+  // The clock's date: that day, opened.
+  const handledRequest = useRef<number | null>(null);
+  useEffect(() => {
+    if (!dayRequest || handledRequest.current === dayRequest.at) return;
+    handledRequest.current = dayRequest.at;
+    select(dayRequest.date);
+    if (!wideRef.current) setDayOpen(true);
+  }, [dayRequest, select]);
+
+  const openDay = useCallback(() => {
+    if (!wideRef.current) setDayOpen(true);
+  }, []);
+  const closeDay = useCallback(
+    (toToday: boolean) => {
+      setDayOpen(false);
+      if (toToday) select(today);
+    },
+    [select, today],
+  );
+  const stepDay = useCallback(
+    (days: number) => select(addDays(selected, days)),
+    [select, selected],
+  );
+  const titleToToday = useSwipeAwarePress(goToday);
+
+  // While a day is open, the month beneath is out of reach (web: out of the tab order).
+  const underRef = useRef<View>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = underRef.current as unknown as HTMLElement | null;
+    if (!node?.setAttribute) return;
+    if (showDay) node.setAttribute('inert', '');
+    else node.removeAttribute('inert');
+  }, [showDay]);
+
   const cellSize = wide
     ? centeredCell
     : Math.floor(clamp((area.width - padding * 2) / 7, 38, MAX_NARROW_CELL));
@@ -249,138 +317,158 @@ export function CalendarView({ bottomInset, topInset }: CalendarViewProps) {
 
   return (
     <View style={[styles.fill, { backgroundColor: theme.page }]} onLayout={onLayout}>
-      {area.width > 0 ? (
-        <ScrollView
-          style={[styles.fill, swipeFriendlyScroll]}
-          contentContainerStyle={[
-            styles.content,
-            {
-              // Narrow layouts: clear the region code in the top-right corner.
-              paddingTop: topInset + padding + (wide ? 0 : TOP_CONTROL_BAND),
-              paddingBottom: bottomInset + padding,
-              ...(wide
-                ? { paddingLeft: gridLeft, paddingRight: gridRight }
-                : { paddingHorizontal: padding }),
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={wide ? styles.wideStage : styles.narrowColumn}>
-            {/* The month — centred on the page */}
-            <View style={{ width: cellSize * 7 }}>
-              <MonthHeader
-                title={system.monthName(visible)}
-                year={visible.year}
-                label={system.monthLabel(visible)}
-                subtitle={subtitle}
-                height={headerHeight}
-                theme={theme}
-                showToday={wide && showToday}
-                scale={headerScale}
-                insetStart={numeralInset}
-                insetEnd={numeralInset}
-                onPrevious={previousMonth ? () => showMonth(previousMonth) : undefined}
-                onNext={nextMonth ? () => showMonth(nextMonth) : undefined}
-                onToday={goToday}
-                onAdd={wide ? addToSelected : undefined}
-                addLabel={system.longDate(selected)}
-              />
-              <View style={{ height: headerGap }} />
-              <MonthGrid
-                system={system}
-                month={visible}
-                days={days}
-                selected={selected}
-                today={today}
-                weekStart={weekStart}
-                weekend={regionOf(settings.region).weekend}
-                cellSize={cellSize}
-                scale={scale}
-                theme={theme}
-                holidays={gridHolidays}
-                kindLabels={kindLabels}
-                itemCounts={itemCounts}
-                onSelect={select}
-              />
-            </View>
+      <View
+        ref={underRef}
+        style={styles.fill}
+        aria-hidden={showDay}
+        importantForAccessibility={showDay ? 'no-hide-descendants' : 'auto'}
+      >
+        {area.width > 0 ? (
+          <RefreshScrollView
+            onRefresh={refresh}
+            theme={theme}
+            indicatorTop={topInset + 12}
+            enabled={!showDay}
+            style={[styles.fill, swipeFriendlyScroll]}
+            contentContainerStyle={[
+              styles.content,
+              {
+                // Narrow layouts: clear the region code in the top-right corner.
+                paddingTop: topInset + padding + (wide ? 0 : TOP_CONTROL_BAND),
+                paddingBottom: bottomInset + padding,
+                ...(wide
+                  ? { paddingLeft: gridLeft, paddingRight: gridRight }
+                  : { paddingHorizontal: padding }),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={wide ? styles.wideStage : styles.narrowColumn}>
+              {/* The month — centred on the page */}
+              <View style={{ width: cellSize * 7 }}>
+                <MonthHeader
+                  title={system.monthName(visible)}
+                  year={visible.year}
+                  label={system.monthLabel(visible)}
+                  subtitle={subtitle}
+                  height={headerHeight}
+                  theme={theme}
+                  scale={headerScale}
+                  insetStart={numeralInset}
+                  insetEnd={numeralInset}
+                  onPrevious={previousMonth ? () => showMonth(previousMonth) : undefined}
+                  onNext={nextMonth ? () => showMonth(nextMonth) : undefined}
+                  onToday={showToday ? titleToToday : undefined}
+                />
+                <View style={{ height: headerGap }} />
+                <MonthGrid
+                  system={system}
+                  month={visible}
+                  days={days}
+                  selected={selected}
+                  today={today}
+                  weekStart={weekStart}
+                  weekend={regionOf(settings.region).weekend}
+                  cellSize={cellSize}
+                  scale={scale}
+                  theme={theme}
+                  holidays={gridHolidays}
+                  kindLabels={kindLabels}
+                  itemCounts={itemCounts}
+                  onSelect={select}
+                  onPressDay={openDay}
+                />
+              </View>
 
-            {/* Narrow: the selected day below the grid (wide: the side panel) */}
-            {wide ? null : (
+              {/* Narrow: the selected day below the grid (wide: the side panel) */}
+              {wide ? null : (
+                <View
+                  style={{
+                    width: cellSize * 7,
+                    marginTop: 36 * scale,
+                    paddingHorizontal: numeralInset,
+                  }}
+                >
+                  <DayPanel
+                    system={system}
+                    date={selected}
+                    isToday={isSameDay(selected, today)}
+                    holidays={selectedHolidays}
+                    kindLabels={kindLabels}
+                    theme={theme}
+                    numeralHeight={44 * scale}
+                    scale={scale}
+                    align="start"
+                    items={selectedItems}
+                    onOpenItem={openItem}
+                    showDate={settings.showDayDate}
+                    showEvents={settings.showDayEvents}
+                  />
+                </View>
+              )}
+            </View>
+          </RefreshScrollView>
+        ) : null}
+        {/* Wide: the selected day in the side panel, placed exactly as on the clock */}
+        {area.width > 0 && wide ? (
+          <Sidebar
+            layout={panel}
+            contentWidth={cellSize * 7}
+            date={
               <View
-                style={{
-                  width: cellSize * 7,
-                  marginTop: 36 * scale,
-                  paddingHorizontal: numeralInset,
-                }}
+                accessible
+                accessibilityRole="header"
+                accessibilityLabel={`${system.longDate(selected)}${
+                  selectedSecondary ? ` (${selectedSecondary})` : ''
+                }${isSameDay(selected, today) ? ', today' : ''}`}
               >
-                <DayPanel
+                <DayHeading
                   system={system}
                   date={selected}
                   isToday={isSameDay(selected, today)}
-                  holidays={selectedHolidays}
-                  kindLabels={kindLabels}
                   theme={theme}
-                  numeralHeight={44 * scale}
-                  scale={scale}
-                  align="start"
-                  items={selectedItems}
-                  onOpenItem={openItem}
-                  showDate={settings.showDayDate}
-                  showEvents={settings.showDayEvents}
-                  actions={
-                    <>
-                      {showToday ? <TodayButton theme={theme} onPress={goToday} /> : null}
-                      <QuietIconButton
-                        icon={Plus}
-                        label={`Add to ${system.longDate(selected)}`}
-                        hint="Event, meeting, note, follow-up or alarm"
-                        onPress={addToSelected}
-                      />
-                    </>
-                  }
+                  numeralHeight={panel.dateNumeral}
+                  align="end"
                 />
               </View>
-            )}
-          </View>
-        </ScrollView>
-      ) : null}
-      {/* Wide: the selected day in the side panel, placed exactly as on the clock */}
-      {area.width > 0 && wide ? (
-        <Sidebar
-          layout={panel}
-          contentWidth={cellSize * 7}
-          date={
-            <View
-              accessible
-              accessibilityRole="header"
-              accessibilityLabel={`${system.longDate(selected)}${
-                selectedSecondary ? ` (${selectedSecondary})` : ''
-              }${isSameDay(selected, today) ? ', today' : ''}`}
-            >
-              <DayHeading
-                system={system}
-                date={selected}
-                isToday={isSameDay(selected, today)}
+            }
+            list={
+              <DayLists
+                items={selectedItems}
+                holidays={selectedHolidays}
+                kindLabels={kindLabels}
                 theme={theme}
-                numeralHeight={panel.dateNumeral}
-                align="end"
+                visible={panel.eventRows}
+                onOpenItem={openItem}
+                onAdd={addToSelected}
+                addLabel={system.longDate(selected)}
               />
-            </View>
-          }
-          list={
-            <DayLists
-              items={selectedItems}
-              holidays={selectedHolidays}
-              kindLabels={kindLabels}
-              theme={theme}
-              visible={panel.eventRows}
-              onOpenItem={openItem}
-            />
-          }
+            }
+          />
+        ) : null}
+        {/* Content scrolling under the overlaid controls fades out beneath them. */}
+        <BottomFade height={bottomInset} color={theme.page} />
+      </View>
+
+      {showDay ? (
+        <DayDetail
+          system={system}
+          date={selected}
+          isToday={isSameDay(selected, today)}
+          holidays={selectedHolidays}
+          kindLabels={kindLabels}
+          items={selectedItems}
+          theme={theme}
+          topInset={topInset}
+          bottomInset={bottomInset}
+          reducedMotion={reducedMotion}
+          onClose={closeDay}
+          onStep={stepDay}
+          onAdd={addToSelected}
+          onOpenItem={openItem}
+          onRefresh={refresh}
         />
       ) : null}
-      {/* Content scrolling under the overlaid controls fades out beneath them. */}
-      <BottomFade height={bottomInset} color={theme.page} />
     </View>
   );
 }

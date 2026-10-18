@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { TextButton } from '@/components/Buttons';
 import { toISODate } from '@/features/calendar/calendar-date';
 import { calendarSystemFor } from '@/features/calendar/calendar-system';
 import { DayHeading } from '@/features/calendar/components/DayHeading';
+import { useDayNav } from '@/features/calendar/day-nav';
+import { useSwipeAwarePress } from '@/features/pager/pager-context';
 import { HolidayList } from '@/features/calendar/components/DayPanel';
 import {
   InfoAside,
@@ -54,25 +56,45 @@ export function TodaySidebar({
 
 export function WatchDate({ now, numeralHeight }: { now: Date; numeralHeight: number }) {
   const { uiTheme: ui, timeZone, settings } = useSettings();
+  const nav = useDayNav();
   const today = instantToWall(Math.floor(now.getTime() / 60_000) * 60_000, timeZone).date;
   const system = calendarSystemFor(settings.region, settings.nepalCalendar, today);
   const secondary = system.secondaryDate?.(today);
+  const label = `${system.longDate(today)}${secondary ? ` (${secondary})` : ''}`;
+  // On the home screen, the date opens today in the calendar.
+  const open = useSwipeAwarePress(() => nav?.openDay(today));
+  const heading = (
+    <DayHeading
+      system={system}
+      date={today}
+      isToday
+      todayPrefix={false}
+      theme={ui}
+      numeralHeight={numeralHeight}
+      align="end"
+    />
+  );
+  if (!nav) {
+    return (
+      <View accessible accessibilityRole="header" accessibilityLabel={label}>
+        {heading}
+      </View>
+    );
+  }
   return (
-    <View
-      accessible
-      accessibilityRole="header"
-      accessibilityLabel={`${system.longDate(today)}${secondary ? ` (${secondary})` : ''}`}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint="Opens today in the calendar"
+      onPress={open}
+      style={({ hovered, pressed }) => [
+        styles.date,
+        { opacity: pressed ? 0.55 : hovered ? 0.8 : 1 },
+        pressed && styles.datePressed,
+      ]}
     >
-      <DayHeading
-        system={system}
-        date={today}
-        isToday
-        todayPrefix={false}
-        theme={ui}
-        numeralHeight={numeralHeight}
-        align="end"
-      />
-    </View>
+      {heading}
+    </Pressable>
   );
 }
 
@@ -177,6 +199,11 @@ function Row({ row, onPress }: { row: Upcoming; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  // Eases between rest, hover and press (web; native changes at once).
+  date: (Platform.OS === 'web'
+    ? { transitionProperty: 'opacity, transform', transitionDuration: '160ms' }
+    : {}) as object,
+  datePressed: { transform: [{ scale: 0.98 }] },
   list: { alignSelf: 'stretch', alignItems: 'flex-end' },
   festivals: { marginTop: 8 },
 });

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
 
@@ -17,8 +17,6 @@ type MonthHeaderProps = {
   /** A quieter second line, e.g. the Gregorian months a B.S. month spans. */
   subtitle?: string;
   theme: CalendarTheme;
-  /** Shows the Today pill (phones put it beside the selected day instead). */
-  showToday: boolean;
   /** Type and control scale; 1 at the base layout size. */
   scale: number;
   /** Row height; the calendar uses it to line up the day panel. */
@@ -29,11 +27,8 @@ type MonthHeaderProps = {
   /** Omitted at the ends of the covered range. */
   onPrevious?: () => void;
   onNext?: () => void;
-  onToday: () => void;
-  /** Adds an event, note or reminder on the selected day. */
-  onAdd?: () => void;
-  /** Names the day the + adds to, for assistive tech: "Friday 16 October". */
-  addLabel?: string;
+  /** Back to today's month and date; given while another day or month is shown. */
+  onToday?: () => void;
 };
 
 const MONTH_SIZE = 30;
@@ -47,7 +42,6 @@ export function MonthHeader({
   label,
   subtitle,
   theme,
-  showToday,
   scale,
   height,
   insetStart = 0,
@@ -55,8 +49,6 @@ export function MonthHeader({
   onPrevious,
   onNext,
   onToday,
-  onAdd,
-  addLabel,
 }: MonthHeaderProps) {
   const yearText = String(year);
   const yearHeight = YEAR_HEIGHT * scale;
@@ -78,11 +70,18 @@ export function MonthHeader({
         },
       ]}
     >
-      <View
-        style={styles.titleBlock}
-        accessibilityRole="header"
+      {/* The month's name; while another month or day is shown, a tap returns to today. */}
+      <Pressable
+        style={({ hovered, pressed }) => [
+          styles.titleBlock,
+          onToday && (hovered || pressed) ? { opacity: 0.72 } : null,
+        ]}
+        accessibilityRole={onToday ? 'button' : 'header'}
         accessibilityLabel={subtitle ? `${label}, ${subtitle}` : label}
+        accessibilityHint={onToday ? 'Goes to today' : undefined}
         accessible
+        disabled={!onToday}
+        onPress={onToday}
       >
         <View style={styles.title}>
           <Text style={[styles.month, { color: theme.ink, fontSize: MONTH_SIZE * scale }]}>
@@ -113,20 +112,9 @@ export function MonthHeader({
             {subtitle}
           </Text>
         ) : null}
-      </View>
+      </Pressable>
 
       <View style={styles.controls}>
-        {onAdd ? (
-          <QuietIconButton
-            icon={Plus}
-            label={addLabel ? `Add to ${addLabel}` : 'Add'}
-            hint="Event, meeting, note, follow-up or alarm"
-            onPress={onAdd}
-            iconSize={iconSize}
-            style={styles.add}
-          />
-        ) : null}
-        {showToday ? <TodayButton theme={theme} scale={scale} onPress={onToday} /> : null}
         <QuietIconButton
           icon={ChevronLeft}
           label="Previous month"
@@ -143,39 +131,6 @@ export function MonthHeader({
         />
       </View>
     </View>
-  );
-}
-
-/** A quiet outlined "Today" pill. */
-export function TodayButton({
-  theme,
-  scale = 1,
-  onPress,
-}: {
-  theme: CalendarTheme;
-  scale?: number;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Go to today"
-      onPress={onPress}
-      style={({ hovered, pressed }) => [
-        styles.today,
-        { borderColor: theme.accent, opacity: hovered || pressed ? 1 : 0.75 },
-        pressed && { backgroundColor: theme.hover },
-      ]}
-    >
-      <Text
-        style={[
-          styles.todayText,
-          { color: theme.accent, fontSize: 13 * Math.min(Math.max(scale, 1), 1.3) },
-        ]}
-      >
-        Today
-      </Text>
-    </Pressable>
   );
 }
 
@@ -206,22 +161,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-  },
-  add: {
-    marginRight: 4,
-  },
-  today: {
-    height: 30,
-    paddingHorizontal: 14,
-    borderRadius: 15,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-  },
-  todayText: {
-    fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.6,
   },
 });

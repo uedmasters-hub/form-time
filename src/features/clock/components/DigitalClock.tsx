@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg from 'react-native-svg';
 
 import type { SidebarLayout } from '@/features/sidebar/sidebar-layout';
@@ -172,7 +172,11 @@ export function DigitalClock({
             accessibilityLabel={`${spoken}. Add something`}
             accessibilityHint="Starts something new at the next five minutes"
             onPress={onPressTime}
-            style={({ hovered }) => hovered && styles.hovered}
+            style={({ hovered, pressed }) => [
+              styles.press,
+              hovered && styles.hovered,
+              pressed && styles.pressed,
+            ]}
           >
             {face}
           </Pressable>
@@ -225,4 +229,9 @@ const styles = StyleSheet.create({
   side: { justifyContent: 'space-between' },
   meridiem: { fontWeight: '600', letterSpacing: 1.6 },
   hovered: { opacity: 0.85 },
+  // A touch answers at once: the time dims and settles back a touch.
+  pressed: { opacity: 0.7, transform: [{ scale: 0.985 }] },
+  press: (Platform.OS === 'web'
+    ? { transitionProperty: 'opacity, transform', transitionDuration: '160ms' }
+    : {}) as object,
 });

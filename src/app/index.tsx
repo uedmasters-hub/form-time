@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,9 @@ import { Clock3, RectangleEllipsis } from 'lucide-react-native';
 import { revealControls } from '@/components/quiet-control';
 import { QuietIconButton } from '@/components/QuietIconButton';
 import SettingsButton from '@/components/SettingsButton';
+import type { CalendarDate } from '@/features/calendar/calendar-date';
 import { CalendarView } from '@/features/calendar/components/CalendarView';
+import { DayNavContext, type DayNav } from '@/features/calendar/day-nav';
 import { AccountSheet } from '@/features/account/components/AccountSheet';
 import { ComposerProvider } from '@/features/events/ComposerProvider';
 import { DownloadBanner } from '@/features/download/DownloadBanner';
@@ -26,6 +28,7 @@ import { useReducedMotion } from '@/hooks/use-reduced-motion';
 
 const VIEWS = ['Clock', 'Calendar'] as const;
 const CLOCK = 0;
+const CALENDAR = 1;
 
 /** Space at the bottom of each view kept clear for the overlaid controls. */
 const CONTROL_BAND = 64;
@@ -55,6 +58,20 @@ export default function Home() {
   }, []);
   const onSwipeStart = useCallback(() => setSwiping(true), []);
 
+  // A day on its own page (phones, tablets): the pages hold still while it's
+  // open, and its "Today" pill, a swipe right or Escape goes back.
+  const [dayOpen, setDayOpen] = useState(false);
+  const [dayRequest, setDayRequest] = useState<{ date: CalendarDate; at: number } | null>(null);
+  const dayNav = useMemo<DayNav>(
+    () => ({
+      openDay: (date) => {
+        setPage(CALENDAR);
+        setDayRequest({ date, at: Date.now() });
+      },
+    }),
+    [],
+  );
+
   // Touch screens: the page's controls show when the page opens, then hide
   // until the screen is touched (any touch; it still does what it did).
   useEffect(() => revealControls(), []);
@@ -68,82 +85,91 @@ export default function Home() {
 
   return (
     <PagerGestureProvider>
-      <ComposerProvider>
-        <View
-          style={[styles.screen, { backgroundColor: uiTheme.page }]}
-          onStartShouldSetResponderCapture={() => {
-            revealControls();
-            return false; // never takes the touch: the dial, a swipe, a tap work as before
-          }}
-        >
-          <SwipePager
-            index={page}
-            onIndexChange={onIndexChange}
-            onSwipeStart={onSwipeStart}
-            progress={progress}
-            reducedMotion={reducedMotion}
+      <DayNavContext.Provider value={dayNav}>
+        <ComposerProvider>
+          <View
+            style={[styles.screen, { backgroundColor: uiTheme.page }]}
+            onStartShouldSetResponderCapture={() => {
+              revealControls();
+              return false; // never takes the touch: the dial, a swipe, a tap work as before
+            }}
           >
-            <ClockPage paused={page !== CLOCK && !swiping} />
-            <CalendarView topInset={insets.top} bottomInset={insets.bottom + CONTROL_BAND} />
-          </SwipePager>
+            <SwipePager
+              index={page}
+              onIndexChange={onIndexChange}
+              onSwipeStart={onSwipeStart}
+              progress={progress}
+              reducedMotion={reducedMotion}
+              locked={dayOpen}
+            >
+              <ClockPage paused={page !== CLOCK && !swiping} />
+              <CalendarView
+                topInset={insets.top}
+                bottomInset={insets.bottom + CONTROL_BAND}
+                active={page === CALENDAR}
+                dayRequest={dayRequest}
+                onDayOpenChange={setDayOpen}
+              />
+            </SwipePager>
 
-          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            {/* Website only: the desktop app for this computer, top left. */}
-            <DownloadBanner />
-            <RegionButton
-              onPress={() => setRegionOpen((open) => !open)}
-              style={{
-                position: 'absolute',
-                right: insets.right + EDGE,
-                top: insets.top + EDGE,
-              }}
-            />
-            {page === CLOCK ? (
-              // Analog ↔ digital, one tap away (also in Settings → Face).
-              <QuietIconButton
-                icon={digital ? Clock3 : RectangleEllipsis}
-                label={digital ? 'Show analog clock' : 'Show digital clock'}
-                onPress={() => update({ face: digital ? 'analog' : 'digital' })}
-                hideOnTouch
+            <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+              {/* Website only: the desktop app for this computer, top left (not over a day's "Today"). */}
+              {dayOpen ? null : <DownloadBanner />}
+              <RegionButton
+                onPress={() => setRegionOpen((open) => !open)}
                 style={{
                   position: 'absolute',
                   right: insets.right + EDGE,
+                  top: insets.top + EDGE,
+                }}
+              />
+              {page === CLOCK ? (
+                // Analog ↔ digital, one tap away (also in Settings → Face).
+                <QuietIconButton
+                  icon={digital ? Clock3 : RectangleEllipsis}
+                  label={digital ? 'Show analog clock' : 'Show digital clock'}
+                  onPress={() => update({ face: digital ? 'analog' : 'digital' })}
+                  hideOnTouch
+                  style={{
+                    position: 'absolute',
+                    right: insets.right + EDGE,
+                    bottom: insets.bottom + EDGE,
+                  }}
+                />
+              ) : null}
+              <SettingsButton
+                onPress={() => setSettingsOpen((open) => !open)}
+                hideOnTouch
+                style={{
+                  position: 'absolute',
+                  left: insets.left + EDGE,
                   bottom: insets.bottom + EDGE,
                 }}
               />
-            ) : null}
-            <SettingsButton
-              onPress={() => setSettingsOpen((open) => !open)}
-              hideOnTouch
-              style={{
-                position: 'absolute',
-                left: insets.left + EDGE,
-                bottom: insets.bottom + EDGE,
-              }}
-            />
-            <View
-              pointerEvents="box-none"
-              style={[styles.indicatorRow, { bottom: insets.bottom + EDGE }]}
-            >
-              <PageIndicator
-                labels={[...VIEWS]}
-                index={page}
-                progress={progress}
-                onSelect={onIndexChange}
-                activeColor={uiTheme.accent}
-                idleColor={uiTheme.hairline}
-                inkColor={uiTheme.ink}
-                hideOnTouch
-              />
+              <View
+                pointerEvents="box-none"
+                style={[styles.indicatorRow, { bottom: insets.bottom + EDGE }]}
+              >
+                <PageIndicator
+                  labels={[...VIEWS]}
+                  index={page}
+                  progress={progress}
+                  onSelect={onIndexChange}
+                  activeColor={uiTheme.accent}
+                  idleColor={uiTheme.hairline}
+                  inkColor={uiTheme.ink}
+                  hideOnTouch
+                />
+              </View>
             </View>
-          </View>
 
-          <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
-          <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
-          <ReminderHost />
-          <AccountSheet />
-        </View>
-      </ComposerProvider>
+            <SettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
+            <RegionSheet visible={regionOpen} onClose={() => setRegionOpen(false)} />
+            <ReminderHost />
+            <AccountSheet />
+          </View>
+        </ComposerProvider>
+      </DayNavContext.Provider>
     </PagerGestureProvider>
   );
 }

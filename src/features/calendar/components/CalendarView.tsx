@@ -64,6 +64,9 @@ const MIN_CENTERED_CELL = 60;
 const MAX_WIDE_CELL = 124;
 const MAX_NARROW_CELL = 84;
 
+/** Phones: the day below the month reads a step larger than the grid's base. */
+const PANEL_TYPE = 1.12;
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
@@ -397,7 +400,7 @@ export function CalendarView({
                     kindLabels={kindLabels}
                     theme={theme}
                     numeralHeight={44 * scale}
-                    scale={scale}
+                    scale={Math.max(scale, PANEL_TYPE)}
                     align="start"
                     items={selectedItems}
                     onOpenItem={openItem}

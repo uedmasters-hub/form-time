@@ -88,8 +88,9 @@ export function DayDetail({
 }: DayDetailProps) {
   const { width } = useWindowDimensions();
   const column = Math.min(COLUMN_MAX, width - SIDE * 2);
-  const scale = Math.min(1.2, Math.max(1, column / 400));
-  const numeral = Math.round(Math.min(64, Math.max(44, column * 0.12)));
+  // Type a step larger than the side panel's: this page is for reading.
+  const scale = Math.min(1.3, Math.max(1.15, column / 360));
+  const numeral = Math.round(Math.min(68, Math.max(48, column * 0.13)));
 
   // In from the right, out the same way.
   const shown = useSharedValue(0);

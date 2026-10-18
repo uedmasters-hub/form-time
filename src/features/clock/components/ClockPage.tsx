@@ -23,22 +23,24 @@ const MAX_CLOCK_SIZE = 1000;
 /** Compact shows the clock at this share of the classic size. */
 const COMPACT_SCALE = 0.62;
 /**
- * Narrow screens: the share of its area's width the dial keeps. The day's
+ * Narrow screens: the share of its area's width the dial keeps (its area
+ * is the page less 20 pt each side). The day's
  * list stays while the dial gets IDEAL_DIAL (with fewer rows or a smaller
  * date if need be), or failing that at least LEAST_DIAL; below that it gives
  * way so the dial can have IDEAL_DIAL.
  */
-const IDEAL_DIAL = 0.75;
-const LEAST_DIAL = 0.72;
+const IDEAL_DIAL = 0.84;
+const LEAST_DIAL = 0.82;
 
 /**
  * Size the clock from the space this page leaves it, measured after
  * layout. Reading the window size during render broke static web output:
  * the server rendered at 0×0 and the client never corrected it.
  */
-function clockSizeFor(width: number, height: number, size: ClockSize) {
+function clockSizeFor(width: number, height: number, size: ClockSize, tight = false) {
   const available = Math.min(width, height);
-  const gutter = Math.max(16, available * 0.04);
+  // Phones (tight): the page's side margin is enough; the dial takes the rest.
+  const gutter = tight ? Math.max(4, available * 0.012) : Math.max(16, available * 0.04);
   const classic = Math.min(MAX_CLOCK_SIZE, available - gutter * 2);
   return Math.floor(size === 'compact' ? classic * COMPACT_SCALE : classic);
 }
@@ -86,6 +88,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
       area.width - main.left - main.right,
       area.height - main.top - main.bottom,
       'classic',
+      true,
     );
     return width > 0 ? dial / width : 0;
   };
@@ -106,6 +109,7 @@ export function ClockPage({ paused = false }: ClockPageProps) {
           area.width - main.left - main.right,
           area.height - main.top - main.bottom,
           settings.size,
+          !layout.wide,
         )
       : 0;
 

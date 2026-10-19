@@ -5,7 +5,7 @@ name: Screensavers
 
 on:
   push:
-    branches: [feat/desktop]
+    branches: [feat/desktop, feat/screensaver]
     paths:
       - 'screensaver/**'
       - 'src/**'
@@ -33,6 +33,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
+      - name: The Mac screen saver's dial colours match the app
+        run: node screensaver/scripts/export-themes.mjs --check
       - run: node screensaver/scripts/build-web.mjs screensaver/build/web
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -74,18 +76,13 @@ jobs:
 
   macos:
     name: macOS (.saver)
-    needs: web
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
-        with:
-          name: web-export
-          path: screensaver/build/web
       - name: Build
         run: |
           set -o pipefail
-          bash screensaver/macos/build.sh --skip-web 2>&1 | tee build.log
+          bash screensaver/macos/build.sh 2>&1 | tee build.log
       - name: Report build errors
         if: failure()
         run: (grep -iE 'error' build.log | head -5; tail -n 5 build.log) | sed 's/^/::error::/'
@@ -96,11 +93,21 @@ jobs:
           lipo -archs "$saver/Contents/MacOS/FormTimeSaver"
           codesign -dv "$saver" 2>&1 | head -5
           plutil -lint "$saver/Contents/Info.plist"
-      - name: Load it and take snapshots
+          if otool -L "$saver/Contents/MacOS/FormTimeSaver" | grep -q WebKit; then echo "::error::links WebKit"; exit 1; fi
+      - name: Load it and draw it
         run: |
-          xcrun clang -fobjc-arc -framework AppKit -framework ScreenSaver -framework WebKit \
+          xcrun clang -fobjc-arc -framework AppKit -framework ScreenSaver \
             screensaver/tests/mac-snapshot.m -o screensaver/build/mac-snapshot
-          screensaver/build/mac-snapshot "screensaver/build/FORM TIME.saver" screensaver/build/screenshots
+          screensaver/build/mac-snapshot "screensaver/build/FORM TIME.saver" screensaver/build/screenshots > notes.txt; status=$?
+          grep -v '^::' notes.txt || true
+          grep -E '::error' notes.txt || true
+          exit $status
+      - name: Results 1
+        if: always()
+        run: grep '^::notice' notes.txt | sed -n '1,8p'
+      - name: Results 2
+        if: always()
+        run: grep '^::notice' notes.txt | sed -n '9,16p'
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: FORM-TIME-Screensaver-mac

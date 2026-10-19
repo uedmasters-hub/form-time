@@ -80,7 +80,10 @@ final class OptionsSheet: NSObject {
         cancel.keyEquivalent = "\u{1b}"
         let ok = NSButton(title: "OK", target: self, action: #selector(okPressed))
         ok.keyEquivalent = "\r"
-        let buttons = NSStackView(views: [cancel, ok])
+        // Cancel and OK at the right, as in every Mac dialog.
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let buttons = NSStackView(views: [spacer, cancel, ok])
         buttons.spacing = 12
 
         let header = NSStackView(views: [title, subtitle])
@@ -104,7 +107,7 @@ final class OptionsSheet: NSObject {
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             stack.topAnchor.constraint(equalTo: content.topAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            buttons.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -24),
+            buttons.widthAnchor.constraint(equalTo: grid.widthAnchor),
         ])
         window.contentView = content
         // As tall as the choices need, whatever the system's text size.

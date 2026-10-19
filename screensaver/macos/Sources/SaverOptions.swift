@@ -7,9 +7,9 @@ struct Choice {
     let name: String
 }
 
-/// The screen saver's options, kept in ScreenSaverDefaults and passed to
-/// the page in its address. The ids match the web app's settings
-/// (settings.ts, dial-palettes.ts); anything unknown falls back there.
+/// The screen saver's options, kept in ScreenSaverDefaults. The ids match
+/// the web app's settings (settings.ts, dial-palettes.ts) and the Windows
+/// screensaver's, so the three stay in step.
 struct SaverOptions {
     static let faces = [
         Choice(id: "analog", name: "Analog"),
@@ -109,23 +109,5 @@ struct SaverOptions {
         d.set(date, forKey: "date")
         d.set(timeZone, forKey: "timeZone")
         d.synchronize()
-    }
-
-    /// The page with these options, e.g. formtime://app/screensaver?face=analog&…
-    var url: URL {
-        var c = URLComponents(string: WebFiles.origin + "/screensaver")!
-        c.queryItems = [
-            URLQueryItem(name: "face", value: face),
-            URLQueryItem(name: "appearance", value: appearance),
-            URLQueryItem(name: "dial", value: dial),
-            URLQueryItem(name: "lume", value: lume),
-            URLQueryItem(name: "movement", value: movement),
-            URLQueryItem(name: "size", value: size),
-            URLQueryItem(name: "seconds", value: seconds ? "1" : "0"),
-            URLQueryItem(name: "depth", value: depth ? "1" : "0"),
-            URLQueryItem(name: "date", value: date ? "1" : "0"),
-            URLQueryItem(name: "tz", value: timeZone.isEmpty ? TimeZone.current.identifier : timeZone),
-        ]
-        return c.url!
     }
 }

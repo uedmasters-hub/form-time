@@ -1,13 +1,19 @@
 # FORM / TIME screensavers
 
 The clock on its own, full screen, as a Windows screensaver and a macOS
-screen saver. Both show the web app's `/screensaver` page (see
-`src/features/screensaver/`) from a copy of the web export inside the
-screensaver itself, so they work offline and never connect to the internet.
+screen saver. Both work offline and never connect to the internet.
+
+- **Windows** shows the web app's `/screensaver` page (`src/features/screensaver/`) from a copy of
+  the web export inside the screensaver, in WebView2.
+- **Mac** draws the clock natively with Core Graphics (`macos/Sources/ClockRenderer.swift`, a
+  line-for-line port of the dial, hands and numerals), because macOS 26.4 and later blank out web
+  content inside screen savers after a few seconds. Its colours come from
+  `macos/Resources/dial-themes.json`, generated from the app's own palettes by
+  `node screensaver/scripts/export-themes.mjs` (CI fails if it's out of date).
 
 | | Windows 10 / 11 | macOS 11 or later |
 |---|---|---|
-| What it is | `FORM TIME.scr`: C# WinForms + WebView2, .NET Framework 4.8 | `FORM TIME.saver`: Swift `ScreenSaverView` + `WKWebView`, universal (Apple silicon + Intel) |
+| What it is | `FORM TIME.scr`: C# WinForms + WebView2, .NET Framework 4.8 | `FORM TIME.saver`: Swift `ScreenSaverView`, drawn natively, universal (Apple silicon + Intel) |
 | Options | Screen Saver Settings → Settings… (with a live preview) | System Settings → Screen Saver → Options… |
 | Installs to | `%LOCALAPPDATA%\Programs\FORM TIME Screensaver` (this user, no admin) | `~/Library/Screen Savers` (this user) |
 | Source | `windows/` | `macos/` |
@@ -36,7 +42,7 @@ Open github.com/uedmasters-hub/form-time → **Actions** → **Screensavers** �
 ### Building them yourself
 From the repo, after `npm ci`:
 
-**Mac** (needs Xcode, or just its Command Line Tools: `xcode-select --install`):
+**Mac** (needs Xcode, or just its Command Line Tools: `xcode-select --install`; no web export):
 ```bash
 bash screensaver/macos/build.sh        # → screensaver/build/FORM TIME.saver (+ a zip)
 bash screensaver/macos/install.sh      # copies it to ~/Library/Screen Savers, opens the settings
@@ -75,16 +81,19 @@ To remove it: right-click it in Screen Saver settings → Delete, or delete
   `/screensaver?face=analog&appearance=night&lume=aqua&movement=smooth&seconds=1&depth=1&size=classic&date=1&tz=Asia/Kolkata`.
   Anything missing falls back to the settings saved in that browser, and the time zone to the computer's.
   It also works in any browser: open `form-time.vercel.app/screensaver` and go full screen.
-- **Serving the export:** both hosts answer the page's requests from the bundled files the way the desktop
-  app does (`/screensaver` → `screensaver.html`, `/_expo/…` from the export), under
-  `https://form-time.screensaver/` (Windows) and `formtime://app/` (Mac), with a Content-Security-Policy
-  that allows nothing outside those files.
+- **Serving the export (Windows):** the host answers the page's requests from the bundled files the way
+  the desktop app does (`/screensaver` → `screensaver.html`, `/_expo/…` from the export), under
+  `https://form-time.screensaver/`, with a Content-Security-Policy that allows nothing outside them.
+- **Drawing on the Mac:** `ClockView` lays the clock out as the page does (margin, date band, drift,
+  fade-in), keeps the dial in a cached image and redraws only the hands (30 times a second for a smooth
+  movement, once a step otherwise). CI loads the bundle as the engine does and posts snapshots of each
+  look as check runs on the commit.
 - **Windows arguments:** `/s` full screen on every monitor, `/p <hwnd>` inside the settings dialog's
   little monitor, `/c` options. Options live in `HKCU\Software\FORM TIME\Screensaver`; WebView2's cache in
   `%LOCALAPPDATA%\FORM TIME\Screensaver`.
-- **macOS 14+ quirk:** the screen-saver engine doesn't always call `stopAnimation` and keeps old views
-  running, so the screen saver quits its process when the screen saver ends
-  (`com.apple.screensaver.willstop`); macOS starts a fresh one next time.
+- **macOS 14+ quirks:** the engine doesn't always call `startAnimation`/`stopAnimation` and keeps old
+  views alive, so each view runs its own timer from when it's shown and stops it on
+  `com.apple.screensaver.willstop`.
 
 ## Not done yet
 - Code signing: Windows needs a code-signing certificate (no SmartScreen warning); the Mac needs a

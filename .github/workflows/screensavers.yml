@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: screensavers-${{ github.ref }}
@@ -102,12 +103,21 @@ jobs:
           grep -v '^::' notes.txt || true
           grep -E '::error' notes.txt || true
           exit $status
-      - name: Results 1
+      - name: Results
         if: always()
-        run: grep '^::notice' notes.txt | sed -n '1,8p'
-      - name: Results 2
+        run: grep '^::notice' notes.txt | head -10
+      - name: Post the snapshots as check runs
         if: always()
-        run: grep '^::notice' notes.txt | sed -n '9,16p'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for f in screensaver/build/screenshots/thumb-*.jpg; do
+            [ -f "$f" ] || continue
+            n=$(basename "$f" .jpg)
+            gh api "repos/$GITHUB_REPOSITORY/check-runs" -f name="mac $n" -f head_sha="$GITHUB_SHA" \
+              -f status=completed -f conclusion=neutral -f "output[title]=$n" -f "output[summary]=JPEG, base64, in text" \
+              -f "output[text]=$(base64 -i "$f" | tr -d '\n')" > /dev/null || echo "couldn't post $n"
+          done
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: FORM-TIME-Screensaver-mac

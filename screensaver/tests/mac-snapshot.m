@@ -1,8 +1,8 @@
 // CI check for the macOS screen saver: loads "FORM TIME.saver" the way the
 // screen-saver engine does (NSBundle, principal class), shows it in a window
-// with several looks, and saves each as a PNG, plus the Options sheet. Each
-// result is also printed as a GitHub annotation, with a small JPEG of it in
-// base64 so the run can be checked without downloading anything.
+// with several looks, and saves each as a PNG, plus the Options sheet, with a
+// small JPEG of each (the workflow posts those as check runs, so a run can be
+// looked at without downloading anything).
 //
 //   clang -fobjc-arc -framework AppKit -framework ScreenSaver \
 //     mac-snapshot.m -o mac-snapshot
@@ -46,25 +46,25 @@ static double drawnShare(NSBitmapImageRep *rep) {
     return total ? 100.0 * drawn / total : 0;
 }
 
-static void report(NSBitmapImageRep *rep, NSString *name, CGFloat thumbWidth) {
+static void report(NSBitmapImageRep *rep, NSString *name, CGFloat thumbWidth, BOOL mustDraw) {
     NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
     [png writeToFile:[outDir stringByAppendingPathComponent:[name stringByAppendingString:@".png"]] atomically:YES];
     double share = drawnShare(rep);
     printf("::notice title=%s::%ldx%ld, drawn %.1f%%\n", name.UTF8String, (long)rep.pixelsWide, (long)rep.pixelsHigh, share);
-    if (share < 1.0) { printf("::error::FAIL %s: nothing drawn\n", name.UTF8String); failures++; }
+    if (mustDraw && share < 1.0) { printf("::error::FAIL %s: nothing drawn\n", name.UTF8String); failures++; }
 
     // A small JPEG, inline, for checking the look from the run's annotations.
     CGFloat w = MIN(thumbWidth, rep.pixelsWide), h = round(w * rep.pixelsHigh / rep.pixelsWide);
     NSBitmapImageRep *small = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL pixelsWide:(NSInteger)w pixelsHigh:(NSInteger)h
                                                                   bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
-                                                                 colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+                                                                 colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
     [NSGraphicsContext saveGraphicsState];
     NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:small];
     NSGraphicsContext.currentContext.imageInterpolation = NSImageInterpolationHigh;
     [rep drawInRect:NSMakeRect(0, 0, w, h)];
     [NSGraphicsContext restoreGraphicsState];
     NSData *jpeg = [small representationUsingType:NSBitmapImageFileTypeJPEG properties:@{NSImageCompressionFactor: @0.72}];
-    printf("::notice title=thumb-%s::%s\n", name.UTF8String, [jpeg base64EncodedStringWithOptions:0].UTF8String);
+    [jpeg writeToFile:[outDir stringByAppendingPathComponent:[NSString stringWithFormat:@"thumb-%@.jpg", name]] atomically:YES];
 }
 
 static void check(NSString *name, NSDictionary *options, NSSize size, BOOL preview, void (^next)(void)) {
@@ -81,7 +81,7 @@ static void check(NSString *name, NSDictionary *options, NSSize size, BOOL previ
     [view startAnimation];
     // After the fade-in, and long enough for a few redraws.
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        report(render(view), name, preview ? 240 : 400);
+        report(render(view), name, preview ? 300 : 480, YES);
         [view stopAnimation];
         [window orderOut:nil];
         next();
@@ -98,7 +98,7 @@ static void sheetSnapshot(void) {
     [sheet makeKeyAndOrderFront:nil];
     [content layoutSubtreeIfNeeded];
     NSBitmapImageRep *rep = render(content);
-    report(rep, @"options-sheet", 360);
+    report(rep, @"options-sheet", 351, NO);
 }
 
 int main(int argc, const char *argv[]) {

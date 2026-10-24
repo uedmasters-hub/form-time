@@ -1,6 +1,11 @@
 # Builds and tests the FORM / TIME screensavers on real Windows and macOS
 # machines, and keeps the results (zips and screenshots) as downloadable
 # artifacts on the run's page (Actions → Screensavers → a run → Artifacts).
+#
+# On feat/desktop, once every check has passed, it also attaches the two
+# zips to the latest GitHub release, replacing earlier copies, so the
+# website's download note (src/features/download) always offers them at
+# releases/latest/download/FORM-TIME-Screensaver-{mac,Windows}.zip.
 name: Screensavers
 
 on:
@@ -129,3 +134,28 @@ jobs:
           name: mac-screenshots
           path: screensaver/build/screenshots
           if-no-files-found: ignore
+
+  publish:
+    name: Attach to the latest release
+    needs: [windows, macos]
+    if: github.ref == 'refs/heads/feat/desktop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          pattern: FORM-TIME-Screensaver-*
+          path: out
+          merge-multiple: true
+      - name: Attach the screensavers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          files=(out/FORM-TIME-Screensaver-mac.zip out/FORM-TIME-Screensaver-Windows.zip)
+          ls -la "${files[@]}"
+          tag=$(gh release view --repo "$REPO" --json tagName --jq .tagName)
+          gh release upload "$tag" "${files[@]}" --repo "$REPO" --clobber
+          echo "::notice title=Published::Attached the screensavers from ${GITHUB_SHA:0:7} to $tag"
